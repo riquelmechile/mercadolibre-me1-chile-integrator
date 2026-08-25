@@ -226,3 +226,33 @@ test('Starken rejects unsafe transport and unknown tracking statuses instead of 
     await assert.rejects(() => adapter.tracking!(shipment, conn), /Unknown Starken tracking status/);
   });
 });
+
+
+test('Starken request templates can consume generic delivery, agency, payment and declared-value fields', async () => {
+  await withJsonServer((_req, body, res) => {
+    assert.deepEqual(body, {
+      delivery: 'agency',
+      payment: 'sender_prepaid',
+      declaredValue: 75000,
+      agency: 'OPAQUE-LOCATION-9',
+    });
+    res.setHeader('content-type', 'application/json');
+    res.end(JSON.stringify({ data: { services: [{ code: 'STD', name: 'Standard', price: 5900, days: 2 }] } }));
+  }, async (baseUrl) => {
+    const cfg = contract(baseUrl) as any;
+    cfg.contract.operations.quote.bodyTemplate = {
+      delivery: '{{deliveryPreference}}',
+      payment: '{{paymentMode}}',
+      declaredValue: '{{declaredValueClp}}',
+      agency: '{{destination.providerLocationId}}',
+    };
+    const adapter = new StarkenAdapter(new CountingSecretProvider('fixture-token'));
+    const quote = await adapter.quote({
+      tenantId: 'tenant-example', provider: 'starken', origin,
+      destination: { ...destination, providerLocationId: 'OPAQUE-LOCATION-9' },
+      package: packageSpec, allowLive: true,
+      deliveryPreference: 'agency', paymentMode: 'sender_prepaid', declaredValueClp: 75000,
+    }, connection(cfg));
+    assert.equal(quote.amount, 5900);
+  });
+});

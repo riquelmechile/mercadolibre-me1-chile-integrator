@@ -24,7 +24,7 @@ This document separates what is publicly documented from what is confirmed but c
 
 ## Starken adapter
 
-**Runtime status (v0.4.0):** the generic contract-driven REST transport is implemented for quote, shipment creation and tracking. Production activation remains gated until an authorized Starken Host-to-Host contract is loaded in private tenant configuration. See `STARKEN-CONTRACT.md`.
+**Runtime status (v0.5.0):** the generic contract-driven REST transport is implemented for quote, shipment creation and tracking. Production activation remains gated until an authorized Starken Host-to-Host contract is loaded in private tenant configuration. See `STARKEN-CONTRACT.md` and `STARKEN-EVIDENCE.md`.
 
 
 ### Officially confirmed

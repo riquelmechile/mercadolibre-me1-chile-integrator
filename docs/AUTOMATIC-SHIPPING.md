@@ -131,3 +131,25 @@ Tenant-specific dimensions do not belong in this public repository. The example 
 | `FLEX-100` | 1.25 kg | 90 × 12 × 8 cm | 120 × 13 × 9 cm | +0.4 cm width / +0.2 cm height per extra unit |
 
 The generic rule is data-driven: below the threshold the base package is used; at/above the threshold a configured fixed length and base cross-section apply, and subsequent units grow width/height by configured increments. Real seller measurements must live in a private tenant configuration store/repository.
+
+
+## Delivery intent
+
+Automatic requests may carry optional provider-neutral shipping intent:
+
+```json
+{
+  "deliveryPreference": "agency",
+  "paymentMode": "sender_prepaid",
+  "declaredValueClp": 25000,
+  "destination": {
+    "region": "Example Region",
+    "commune": "Example Commune",
+    "providerLocationId": "opaque-location-id"
+  }
+}
+```
+
+`providerLocationId` is deliberately opaque. The core stores/passes it but does not translate it into a Starken/Blue Express/Chilexpress agency code. If `deliveryPreference` is `home` or `agency`, automatic shipment creation preserves that concrete intent; `any` does not invent a final delivery mode.
+
+Multi-package remains fail-closed. Public evidence that a carrier supports multiple packages is not enough to define how package arrays, labels, tracking identifiers or idempotency work in its Host-to-Host contract.

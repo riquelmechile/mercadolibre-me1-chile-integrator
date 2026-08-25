@@ -25,11 +25,17 @@ function sameText(left: string | undefined, right: string | undefined): boolean 
 }
 
 function ruleSpecificity(rule: TariffRule, input: QuoteInput): number {
-  if (rule.commune && sameText(rule.commune, input.destination.commune)) return 3;
-  if (rule.commune) return -1;
-  if (rule.region && sameText(rule.region, input.destination.region)) return 2;
-  if (rule.region) return -1;
-  return 1;
+  let location = 1;
+  if (rule.commune && sameText(rule.commune, input.destination.commune)) location = 3;
+  else if (rule.commune) return -1;
+  else if (rule.region && sameText(rule.region, input.destination.region)) location = 2;
+  else if (rule.region) return -1;
+
+  if (rule.deliveryMode && input.deliveryPreference && input.deliveryPreference !== 'any' && rule.deliveryMode !== input.deliveryPreference) return -1;
+  if (rule.paymentMode && input.paymentMode && rule.paymentMode !== input.paymentMode) return -1;
+  const deliveryBonus = rule.deliveryMode && input.deliveryPreference === rule.deliveryMode ? 2 : 0;
+  const paymentBonus = rule.paymentMode && input.paymentMode === rule.paymentMode ? 1 : 0;
+  return location * 10 + deliveryBonus + paymentBonus;
 }
 
 function chargeableWeight(input: QuoteInput, divisor = 4000): number {
@@ -82,6 +88,7 @@ export class LogisticsService {
           chargeableWeightKg: match.weight,
           snapshotVersion: snapshot.version,
           source: 'snapshot',
+          ...(match.rule.deliveryMode ? { deliveryMode: match.rule.deliveryMode } : {}),
         });
       }
     }

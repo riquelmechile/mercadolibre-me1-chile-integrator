@@ -32,7 +32,7 @@ The public developer pages do **not** expose a complete production Host-to-Host 
 
 ## Boundary
 
-The adapter currently implements these normalized capabilities:
+The v0.5.0 adapter currently implements these normalized capabilities:
 
 - `quote`
 - `create_shipment`
@@ -159,3 +159,21 @@ Before enabling a real Starken connection:
 10. approve the tenant contract through review before enabling live emission.
 
 The public core should not be modified simply to insert an account-specific URL or payload field.
+
+
+## Generic delivery fields available to mappings — v0.5.0
+
+The normalized quote context can expose:
+
+- `deliveryPreference` — `home`, `agency`, or `any`;
+- `paymentMode` — `sender_prepaid` or `recipient_pay`;
+- `declaredValueClp`;
+- `destination.providerLocationId` — opaque selected location/agency identifier.
+
+The shipment-create context exposes concrete `deliveryMode` instead of `any`, plus `paymentMode`, `declaredValueClp`, and the same opaque destination location identifier. These are generic logistics fields, not Starken constants.
+
+A quote response mapping may optionally provide `deliveryModePath`. Only `home` and `agency` are accepted; unknown values fail closed.
+
+Current public Starken evidence confirms home/agency delivery concepts, declared value in the public quote flow, account-dependent payment behavior and agency configuration. It does **not** publish the exact Host-to-Host field names/codes, so an authorized contract mapping is still required before production.
+
+See `STARKEN-EVIDENCE.md` for provenance and evidence tiers.

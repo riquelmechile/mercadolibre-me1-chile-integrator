@@ -9,6 +9,9 @@ import {
   nowIso,
   type CarrierProvider,
   type CanonicalShipmentStatus,
+  type DeliveryMode,
+  type DeliveryPreference,
+  type PaymentMode,
   type QuoteInput,
   type PackagingProfile,
   type PackagingMatchType,
@@ -26,6 +29,9 @@ import type { Store } from './ports.js';
 const providers = new Set<CarrierProvider>(['mock', 'starken', 'blueexpress', 'chilexpress']);
 const packagingMatchTypes = new Set<PackagingMatchType>(['sku', 'family', 'default']);
 const packingModes = new Set<PackingMode>(['fixed', 'scale_weight_only', 'stack_height', 'stack_length', 'stack_width', 'threshold_growth']);
+const deliveryModes = new Set<DeliveryMode>(['home', 'agency']);
+const deliveryPreferences = new Set<DeliveryPreference>(['home', 'agency', 'any']);
+const paymentModes = new Set<PaymentMode>(['sender_prepaid', 'recipient_pay']);
 
 const statuses = new Set<CanonicalShipmentStatus>([
   'created',
@@ -70,6 +76,21 @@ function requiredObject(body: Record<string, unknown>, key: string): Record<stri
 function requiredNumber(body: Record<string, unknown>, key: string): number {
   const value = Number(body[key]);
   if (!Number.isFinite(value)) throw new AppError('invalid_request', `${key} must be numeric`, 400);
+  return value;
+}
+
+
+function optionalEnum<T extends string>(body: Record<string, unknown>, key: string, allowed: ReadonlySet<T>): T | undefined {
+  if (body[key] == null) return undefined;
+  const value = requiredString(body, key) as T;
+  if (!allowed.has(value)) throw new AppError('invalid_request', `${key} is invalid`, 400);
+  return value;
+}
+
+function optionalNonNegativeNumber(body: Record<string, unknown>, key: string): number | undefined {
+  if (body[key] == null) return undefined;
+  const value = requiredNumber(body, key);
+  if (value < 0) throw new AppError('invalid_request', `${key} cannot be negative`, 400);
   return value;
 }
 
@@ -137,6 +158,7 @@ function addressOf(value: unknown, field: string): QuoteInput['origin'] {
     region: requiredString(body, 'region'),
     commune: requiredString(body, 'commune'),
     ...(typeof body.postalCode === 'string' ? { postalCode: body.postalCode } : {}),
+    ...(body.providerLocationId != null ? { providerLocationId: requiredString(body, 'providerLocationId') } : {}),
   };
 }
 
@@ -203,7 +225,7 @@ export function buildServer(options: BuildServerOptions): FastifyInstance {
   app.get('/healthz', async () => ({
     ok: true,
     service: 'mercadolibre-me1-chile-integrator',
-    version: '0.4.0',
+    version: '0.5.0',
     providers: adapters.providers(),
   }));
 
@@ -339,6 +361,8 @@ export function buildServer(options: BuildServerOptions): FastifyInstance {
         ...(typeof rule.region === 'string' ? { region: rule.region } : {}),
         ...(typeof rule.commune === 'string' ? { commune: rule.commune } : {}),
         ...(rule.volumetricDivisor != null ? { volumetricDivisor: requiredNumber(rule, 'volumetricDivisor') } : {}),
+        ...(optionalEnum(rule, 'deliveryMode', deliveryModes) ? { deliveryMode: optionalEnum(rule, 'deliveryMode', deliveryModes)! } : {}),
+        ...(optionalEnum(rule, 'paymentMode', paymentModes) ? { paymentMode: optionalEnum(rule, 'paymentMode', paymentModes)! } : {}),
       };
     });
     const snapshot = store.createTariffSnapshot({
@@ -362,6 +386,9 @@ export function buildServer(options: BuildServerOptions): FastifyInstance {
       destination: addressOf(body.destination, 'destination'),
       package: packageOf(body.package),
       allowLive: body.allowLive === true,
+      ...(optionalEnum(body, 'deliveryPreference', deliveryPreferences) ? { deliveryPreference: optionalEnum(body, 'deliveryPreference', deliveryPreferences)! } : {}),
+      ...(optionalEnum(body, 'paymentMode', paymentModes) ? { paymentMode: optionalEnum(body, 'paymentMode', paymentModes)! } : {}),
+      ...(body.declaredValueClp != null ? { declaredValueClp: optionalNonNegativeNumber(body, 'declaredValueClp')! } : {}),
     });
   });
 
@@ -389,6 +416,9 @@ export function buildServer(options: BuildServerOptions): FastifyInstance {
       idempotencyKey: requiredString(body, 'idempotencyKey'),
       ...(typeof body.marketplaceShipmentId === 'string' ? { marketplaceShipmentId: body.marketplaceShipmentId } : {}),
       ...(body.preferredProvider != null ? { preferredProvider: providerOf(body.preferredProvider) } : {}),
+      ...(optionalEnum(body, 'deliveryPreference', deliveryPreferences) ? { deliveryPreference: optionalEnum(body, 'deliveryPreference', deliveryPreferences)! } : {}),
+      ...(optionalEnum(body, 'paymentMode', paymentModes) ? { paymentMode: optionalEnum(body, 'paymentMode', paymentModes)! } : {}),
+      ...(body.declaredValueClp != null ? { declaredValueClp: optionalNonNegativeNumber(body, 'declaredValueClp')! } : {}),
     }, 'automatic', request.id);
     return reply.status(201).send(result);
   });
@@ -405,6 +435,9 @@ export function buildServer(options: BuildServerOptions): FastifyInstance {
       idempotencyKey: requiredString(body, 'idempotencyKey'),
       ...(typeof body.marketplaceShipmentId === 'string' ? { marketplaceShipmentId: body.marketplaceShipmentId } : {}),
       ...(typeof body.serviceCode === 'string' ? { serviceCode: body.serviceCode } : {}),
+      ...(optionalEnum(body, 'deliveryMode', deliveryModes) ? { deliveryMode: optionalEnum(body, 'deliveryMode', deliveryModes)! } : {}),
+      ...(optionalEnum(body, 'paymentMode', paymentModes) ? { paymentMode: optionalEnum(body, 'paymentMode', paymentModes)! } : {}),
+      ...(body.declaredValueClp != null ? { declaredValueClp: optionalNonNegativeNumber(body, 'declaredValueClp')! } : {}),
     };
     const shipment = await logistics.createShipment(input, 'api', request.id);
     return reply.status(201).send(shipment);

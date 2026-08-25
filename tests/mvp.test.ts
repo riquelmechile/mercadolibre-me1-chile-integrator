@@ -276,3 +276,46 @@ test('server refuses non-loopback bind without runtime API key', () => {
   /APP_API_KEY is required/);
   store.close();
 });
+
+
+test('HTTP quote boundary rejects unknown delivery modes and negative declared values', async () => {
+  const { store, adapters } = fixture();
+  const tenant = createTenantWithMock(store);
+  store.createTariffSnapshot({
+    id: newId(), tenantId: tenant.id, provider: 'mock', version: 'validation-v1', active: true, createdAt: nowIso(),
+    rules: [{ id: newId(), serviceCode: 'STD', serviceName: 'Standard', currency: 'CLP', amount: 4990, minWeightKg: 0, maxWeightKg: 100, estimatedBusinessDays: 2 }],
+  });
+  const app = buildServer({ store, adapters, config: { host: '127.0.0.1', port: 0, sqlitePath: ':memory:', logLevel: 'silent', me1Certified: false, enableDevRoutes: false, meliApiBaseUrl: 'https://api.mercadolibre.com' } });
+
+  const invalidMode = await app.inject({ method: 'POST', url: '/v1/quotes', payload: {
+    tenantId: tenant.id, provider: 'mock', origin, destination, package: packageSpec, deliveryPreference: 'teleport',
+  } });
+  assert.equal(invalidMode.statusCode, 400);
+
+  const invalidValue = await app.inject({ method: 'POST', url: '/v1/quotes', payload: {
+    tenantId: tenant.id, provider: 'mock', origin, destination, package: packageSpec, declaredValueClp: -1,
+  } });
+  assert.equal(invalidValue.statusCode, 400);
+  await app.close();
+});
+
+
+test('snapshot rules prefer exact delivery and payment metadata over cheaper generic rules', async () => {
+  const { store, service } = fixture();
+  const tenant = createTenantWithMock(store);
+  store.createTariffSnapshot({
+    id: newId(), tenantId: tenant.id, provider: 'mock', version: 'delivery-v1', active: true, createdAt: nowIso(),
+    rules: [
+      { id: newId(), serviceCode: 'GEN', serviceName: 'Generic', currency: 'CLP', amount: 1000, minWeightKg: 0, maxWeightKg: 100, estimatedBusinessDays: 2 },
+      { id: newId(), serviceCode: 'HOME', serviceName: 'Home', currency: 'CLP', amount: 3000, minWeightKg: 0, maxWeightKg: 100, estimatedBusinessDays: 2, deliveryMode: 'home', paymentMode: 'recipient_pay' },
+      { id: newId(), serviceCode: 'AGENCY', serviceName: 'Agency', currency: 'CLP', amount: 5000, minWeightKg: 0, maxWeightKg: 100, estimatedBusinessDays: 2, deliveryMode: 'agency', paymentMode: 'sender_prepaid' },
+    ],
+  });
+  const quote = await service.quote({
+    tenantId: tenant.id, provider: 'mock', origin, destination, package: packageSpec,
+    deliveryPreference: 'agency', paymentMode: 'sender_prepaid', declaredValueClp: 25000,
+  });
+  assert.equal(quote.serviceCode, 'AGENCY');
+  assert.equal(quote.deliveryMode, 'agency');
+  store.close();
+});

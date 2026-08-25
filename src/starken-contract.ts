@@ -301,6 +301,9 @@ function normalizedQuoteContext(input: QuoteInput): JsonRecord {
     origin: input.origin as unknown as JsonRecord,
     destination: input.destination as unknown as JsonRecord,
     package: input.package as unknown as JsonRecord,
+    deliveryPreference: input.deliveryPreference ?? null,
+    paymentMode: input.paymentMode ?? null,
+    declaredValueClp: input.declaredValueClp ?? null,
   };
 }
 
@@ -313,6 +316,9 @@ function normalizedShipmentContext(input: ShipmentCreateInput): JsonRecord {
     destination: input.destination as unknown as JsonRecord,
     package: input.package as unknown as JsonRecord,
     serviceCode: input.serviceCode ?? null,
+    deliveryMode: input.deliveryMode ?? null,
+    paymentMode: input.paymentMode ?? null,
+    declaredValueClp: input.declaredValueClp ?? null,
     idempotencyKey: input.idempotencyKey,
     metadata: input.metadata ?? {},
   };
@@ -362,6 +368,9 @@ export class ContractDrivenStarkenAdapter implements CourierAdapter {
       if (amount < 0 || estimatedBusinessDays < 0) throw gated('Starken quote contains negative values');
       const chargeablePath = optionalMappedPath(mapping, 'chargeableWeightKgPath');
       const chargeableWeightKg = chargeablePath ? finiteNumber(getPath(item, chargeablePath), 'chargeableWeightKg') : input.package.weightKg;
+      const deliveryModePath = optionalMappedPath(mapping, 'deliveryModePath');
+      const deliveryMode = deliveryModePath ? scalarString(getPath(item, deliveryModePath), 'deliveryMode') : undefined;
+      if (deliveryMode && deliveryMode !== 'home' && deliveryMode !== 'agency') throw gated('Starken quote returned an invalid delivery mode', { deliveryMode });
       return {
         provider: 'starken',
         serviceCode,
@@ -372,6 +381,7 @@ export class ContractDrivenStarkenAdapter implements CourierAdapter {
         chargeableWeightKg,
         snapshotVersion: null,
         source: 'live',
+        ...(deliveryMode ? { deliveryMode: deliveryMode as 'home' | 'agency' } : {}),
       };
     });
     quotes.sort((a, b) => a.amount - b.amount || a.estimatedBusinessDays - b.estimatedBusinessDays || a.serviceCode.localeCompare(b.serviceCode));

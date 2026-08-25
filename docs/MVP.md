@@ -1,4 +1,4 @@
-# MVP runtime — v0.4.0
+# MVP runtime — v0.5.0
 
 **Implementation cut:** 25 August 2026.
 
@@ -186,3 +186,17 @@ The next Starken slice is authorized-contract activation and tenant pilot valida
 - Mercado Libre Custom order/shipment ingestion using a real seller connection.
 
 ME1 Dynamic Freight production remains a later certification milestone.
+
+
+## Generic delivery intent — v0.5.0
+
+Quote and automatic-shipment requests may now express logistics intent without provider-specific codes:
+
+- `deliveryPreference`: `home`, `agency`, or `any`;
+- `destination.providerLocationId`: opaque carrier/location identifier when an agency/pickup point has already been selected;
+- `paymentMode`: `sender_prepaid` or `recipient_pay`;
+- `declaredValueClp`: non-negative declared merchandise value.
+
+Direct shipment creation uses concrete `deliveryMode` (`home` or `agency`) rather than `any`. These fields are optional and backward-compatible. Tariff snapshots may optionally tag rules with `deliveryMode` and `paymentMode`; exact matches outrank generic rules while legacy untagged rules remain valid fallbacks.
+
+The core never interprets `providerLocationId` as a Starken agency code. It is an opaque value whose provider-specific meaning belongs to the authorized adapter contract.

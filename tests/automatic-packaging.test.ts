@@ -15,22 +15,25 @@ const destination = { region: 'Metropolitana', commune: 'Providencia' };
 class TestStarkenAdapter implements CourierAdapter {
   readonly provider = 'starken' as const;
   private readonly caps = new Set<CarrierCapability>(['quote', 'create_shipment']);
+  lastCreateInput: ShipmentCreateInput | null = null;
   capabilities(_connection: CarrierConnection): ReadonlySet<CarrierCapability> { return this.caps; }
   async quote(_input: QuoteInput): Promise<QuoteResult> { throw new Error('snapshot should be used'); }
   async createShipment(input: ShipmentCreateInput): Promise<ProviderShipmentResult> {
+    this.lastCreateInput = input;
     return { providerShipmentRef: `starken-test-${input.externalOrderId}`, trackingNumber: 'STKTEST1', status: 'label_ready', metadata: { testAdapter: true } };
   }
 }
 
 function setup() {
   const store = new SqliteStore(':memory:');
-  const adapters = new AdapterRegistry([new MockCourierAdapter(), new TestStarkenAdapter()]);
+  const starkenAdapter = new TestStarkenAdapter();
+  const adapters = new AdapterRegistry([new MockCourierAdapter(), starkenAdapter]);
   const logistics = new LogisticsService(store, adapters);
   const packaging = new PackagingResolver(store);
   const automatic = new AutomaticShippingService(store, logistics, packaging);
   const tenant = store.createTenant({ id: newId(), name: 'ExampleCo', createdAt: nowIso() });
   store.createSellerConnection({ id: newId(), tenantId: tenant.id, marketplace: 'mercadolibre', sellerId: 'seller-1', credentialRef: 'meli/exampleco', enabled: true, config: {}, createdAt: nowIso() });
-  return { store, adapters, logistics, packaging, automatic, tenant };
+  return { store, adapters, logistics, packaging, automatic, tenant, starkenAdapter };
 }
 
 function profile(store: SqliteStore, tenantId: string, values: Partial<Parameters<SqliteStore['createPackagingProfile']>[0]> & { name: string }) {
@@ -159,4 +162,32 @@ test('threshold_growth validation fails closed when its rule is missing or inval
   const invalid = await app.inject({ method: 'POST', url: `/v1/tenants/${tenant.id}/packaging-profiles`, payload: { name: 'bad2', matchType: 'sku', matchValue: 'BAD2', packingMode: 'threshold_growth', maxQuantity: 10, package: { weightKg: 1, lengthCm: 1, widthCm: 1, heightCm: 1 }, quantityRule: { threshold: 1, fixedLengthCm: 10, baseWidthCm: 2, baseHeightCm: 2, widthIncrementCm: 1, heightIncrementCm: 1 } } });
   assert.equal(invalid.statusCode, 400);
   await app.close();
+});
+
+
+test('automatic shipment preserves generic agency, payment and declared-value intent for provider creation', async () => {
+  const { store, automatic, tenant, starkenAdapter } = setup();
+  store.createCarrierConnection({ id: newId(), tenantId: tenant.id, provider: 'starken', credentialRef: 'starken/ref', enabled: true, config: {}, createdAt: nowIso() });
+  snapshot(store, tenant.id, 'starken', 4200);
+  profile(store, tenant.id, { name: 'Agency-ready product', matchType: 'sku', matchValue: 'AGENCY-1', package: { weightKg: 2, lengthCm: 40, widthCm: 20, heightCm: 10 } });
+
+  await automatic.create({
+    tenantId: tenant.id,
+    sellerId: 'seller-1',
+    externalOrderId: 'ORDER-AGENCY',
+    origin,
+    destination: { ...destination, providerLocationId: 'AGENCY-OPAQUE-123' },
+    items: [{ sku: 'AGENCY-1', quantity: 1 }],
+    preferredProvider: 'starken',
+    deliveryPreference: 'agency',
+    paymentMode: 'sender_prepaid',
+    declaredValueClp: 45000,
+    idempotencyKey: 'ORDER-AGENCY',
+  });
+
+  assert.equal(starkenAdapter.lastCreateInput?.deliveryMode, 'agency');
+  assert.equal(starkenAdapter.lastCreateInput?.paymentMode, 'sender_prepaid');
+  assert.equal(starkenAdapter.lastCreateInput?.declaredValueClp, 45000);
+  assert.equal(starkenAdapter.lastCreateInput?.destination.providerLocationId, 'AGENCY-OPAQUE-123');
+  store.close();
 });

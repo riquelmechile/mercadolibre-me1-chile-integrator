@@ -160,6 +160,9 @@ export class AutomaticShippingService {
           destination: request.destination,
           package: packaging.package,
           allowLive: false,
+          ...(request.deliveryPreference ? { deliveryPreference: request.deliveryPreference } : {}),
+          ...(request.paymentMode ? { paymentMode: request.paymentMode } : {}),
+          ...(request.declaredValueClp != null ? { declaredValueClp: request.declaredValueClp } : {}),
         }));
       } catch (error) {
         failures.push({ provider, reason: error instanceof Error ? error.message : String(error) });
@@ -170,6 +173,10 @@ export class AutomaticShippingService {
     if (!quote) {
       throw new NotFoundError('No eligible carrier quote for resolved package', { failures, package: packaging.package });
     }
+    const requestedDeliveryMode = request.deliveryPreference === 'home' || request.deliveryPreference === 'agency'
+      ? request.deliveryPreference
+      : undefined;
+    const selectedDeliveryMode = quote.deliveryMode ?? requestedDeliveryMode;
 
     const automaticMetadata = {
       automaticShipping: {
@@ -178,6 +185,9 @@ export class AutomaticShippingService {
         packagingItems: packaging.items,
         resolvedPackage: packaging.package,
         quote,
+        ...(request.deliveryPreference ? { deliveryPreference: request.deliveryPreference } : {}),
+        ...(request.paymentMode ? { paymentMode: request.paymentMode } : {}),
+        ...(request.declaredValueClp != null ? { declaredValueClp: request.declaredValueClp } : {}),
       },
     };
     const shipment = await this.logistics.createShipment({
@@ -189,6 +199,9 @@ export class AutomaticShippingService {
       destination: request.destination,
       package: packaging.package,
       serviceCode: quote.serviceCode,
+      ...(selectedDeliveryMode ? { deliveryMode: selectedDeliveryMode } : {}),
+      ...(request.paymentMode ? { paymentMode: request.paymentMode } : {}),
+      ...(request.declaredValueClp != null ? { declaredValueClp: request.declaredValueClp } : {}),
       idempotencyKey: `automatic:${request.idempotencyKey}`,
       metadata: automaticMetadata,
     }, actor, correlationId);

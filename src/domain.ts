@@ -2,6 +2,9 @@ import { randomUUID } from 'node:crypto';
 
 export type CarrierProvider = 'mock' | 'starken' | 'blueexpress' | 'chilexpress';
 export type MarketplaceProvider = 'mercadolibre';
+export type DeliveryMode = 'home' | 'agency';
+export type DeliveryPreference = DeliveryMode | 'any';
+export type PaymentMode = 'sender_prepaid' | 'recipient_pay';
 export type CarrierCapability =
   | 'quote'
   | 'create_shipment'
@@ -65,6 +68,7 @@ export interface AddressPoint {
   region: string;
   commune: string;
   postalCode?: string;
+  providerLocationId?: string;
 }
 
 export interface PackageSpec {
@@ -117,6 +121,9 @@ export interface AutomaticShipmentRequest {
   destination: AddressPoint;
   items: AutomaticOrderItem[];
   preferredProvider?: CarrierProvider;
+  deliveryPreference?: DeliveryPreference;
+  paymentMode?: PaymentMode;
+  declaredValueClp?: number;
   idempotencyKey: string;
 }
 
@@ -147,6 +154,8 @@ export interface TariffRule {
   maxWeightKg: number;
   estimatedBusinessDays: number;
   volumetricDivisor?: number;
+  deliveryMode?: DeliveryMode;
+  paymentMode?: PaymentMode;
 }
 
 export interface TariffSnapshot {
@@ -166,6 +175,9 @@ export interface QuoteInput {
   destination: AddressPoint;
   package: PackageSpec;
   allowLive?: boolean;
+  deliveryPreference?: DeliveryPreference;
+  paymentMode?: PaymentMode;
+  declaredValueClp?: number;
 }
 
 export interface QuoteResult {
@@ -178,6 +190,7 @@ export interface QuoteResult {
   chargeableWeightKg: number;
   snapshotVersion: string | null;
   source: 'snapshot' | 'live' | 'contingency';
+  deliveryMode?: DeliveryMode;
 }
 
 export interface ShipmentCreateInput {
@@ -189,6 +202,9 @@ export interface ShipmentCreateInput {
   destination: AddressPoint;
   package: PackageSpec;
   serviceCode?: string;
+  deliveryMode?: DeliveryMode;
+  paymentMode?: PaymentMode;
+  declaredValueClp?: number;
   idempotencyKey: string;
   metadata?: Record<string, unknown>;
 }
