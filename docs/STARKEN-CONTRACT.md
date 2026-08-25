@@ -13,7 +13,10 @@ Official Starken sources confirm that e-commerce/system integrations can use RES
 - label generation/printing;
 - shipment tracking;
 - proof of delivery (POD);
-- pickup/reverse-logistics workflows.
+- pickup/reverse-logistics workflows;
+- Host-to-Host REST emission for OF creation;
+- single and batch OF reprinting with Zebra/PDF output;
+- multi-package handling, agency configuration and commune-level discounts in the official Shopify integration.
 
 Official references:
 
@@ -23,6 +26,7 @@ Official references:
 - https://developers.starken.cl/cotizaTusEnvios
 - https://developers.starken.cl/seguimiento
 - https://developers.starken.cl/plugins
+- https://apps.shopify.com/starken-envios-a-todo-chile
 
 The public developer pages do **not** expose a complete production Host-to-Host REST contract with the exact account authentication scheme, endpoint set and request/response payloads. Those details therefore remain private configuration supplied only after authorized onboarding with Starken.
 
@@ -34,7 +38,9 @@ The adapter currently implements these normalized capabilities:
 - `create_shipment`
 - `tracking`
 
-Other Starken capabilities documented publicly (labels, pickup, POD, reverse logistics) remain roadmap capabilities until the corresponding authorized contract is represented in the public normalized interface.
+Other Starken capabilities documented publicly (labels/reprint, pickup, POD, reverse logistics, multi-package shipments, agency selection and commercial discount rules) remain roadmap capabilities until the corresponding authorized contract is represented in the public normalized interface.
+
+The public Host-to-Host page confirms OF creation and printing/reprinting workflows, but it does not publish the exact REST paths, auth scheme or payload schemas. The Shopify app additionally confirms multi-package operation, configurable agencies and commune-level discounts; those features must not be inferred as identical Host-to-Host fields without the authorized contract.
 
 A connection can only advertise capabilities that the adapter actually implements. Configuration cannot make the adapter claim an unsupported runtime capability.
 

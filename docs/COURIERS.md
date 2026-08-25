@@ -36,7 +36,9 @@ Starken states that an e-commerce can integrate through **REST API and/or SOAP**
 - quotation based on dimensions, weight and destination;
 - delivery modality selection;
 - proof of delivery (POD) PDF;
-- reverse logistics.
+- reverse logistics;
+- Host-to-Host REST emission for creating OFs;
+- single/batch reprinting, including Zebra-label and PDF printing flows.
 
 StarkenPro plugin documentation additionally confirms:
 
@@ -44,7 +46,12 @@ StarkenPro plugin documentation additionally confirms:
 - online OF issuance;
 - label generation;
 - shipment tracking;
-- token request through StarkenPro "Solicitud Plugins".
+- token request through StarkenPro "Solicitud Plugins";
+- multi-package shipments in the official Shopify app;
+- agency selection/configuration;
+- commune-level commercial discounts in the Shopify integration.
+
+These last Shopify/plugin capabilities are provider evidence, not proof that the current public Host-to-Host REST contract exposes the same fields or credentials. Keep them capability-gated until the authorized REST mapping is obtained.
 
 ### Do not assume
 
@@ -66,6 +73,10 @@ Do not assume the StarkenPro plugin token is the same credential/scope as the en
 - https://www.starken.cl/empresas
 - https://starkenpro.cl/Integraciondeplugin
 - https://developers.starken.cl/plugins
+- https://developers.starken.cl/vendeConNosotros
+- https://developers.starken.cl/cotizaTusEnvios
+- https://developers.starken.cl/seguimiento
+- https://apps.shopify.com/starken-envios-a-todo-chile
 
 ---
 
