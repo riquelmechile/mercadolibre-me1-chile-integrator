@@ -4,7 +4,7 @@ Open research and architecture for a **multi-tenant logistics integration platfo
 
 > Research cut: **25 August 2026 (Chile)**.
 >
-> This repository now includes an **executable v0.3.0 MVP runtime** plus the August 2026 research baseline. It contains no production credentials, no private courier endpoints and no live mutations against Mercado Libre or carriers by default.
+> This repository now includes an **executable v0.4.0 MVP runtime** plus the August 2026 research baseline. It contains no production credentials, no private courier endpoints and no live mutations against Mercado Libre or carriers by default.
 
 ## Why this project exists
 
@@ -105,6 +105,7 @@ See [`docs/CHANGES-2026.md`](docs/CHANGES-2026.md).
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — staged delivery and certification plan.
 - [`docs/CHANGES-2026.md`](docs/CHANGES-2026.md) — upcoming deadlines and migrations.
 - [`docs/MVP.md`](docs/MVP.md) — executable runtime, local API and integration contract workflow.
+- [`docs/STARKEN-CONTRACT.md`](docs/STARKEN-CONTRACT.md) — generic Starken REST contract adapter, safety model and activation checklist.
 - [`docs/PUBLIC-PRIVATE-BOUNDARY.md`](docs/PUBLIC-PRIVATE-BOUNDARY.md) — repository boundary for generic product code vs tenant-specific pilot data.
 - [`docs/AUTOMATIC-SHIPPING.md`](docs/AUTOMATIC-SHIPPING.md) — automatic packaging from a SKU/family dimension list and order-to-shipment flow.
 
@@ -149,4 +150,4 @@ See [`docs/MVP.md`](docs/MVP.md) for local setup, endpoints and the procedure fo
 
 ## Status
 
-**Research baseline: active. MVP runtime v0.3.0 implemented with automatic dimension-list shipping. Production integrations: not enabled. ME1 certification gate: disabled.**
+**Research baseline: active. MVP runtime v0.4.0 implemented with automatic dimension-list shipping and a contract-driven Starken REST adapter. No production Starken contract is bundled or enabled. ME1 certification gate: disabled.**

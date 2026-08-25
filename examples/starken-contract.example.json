@@ -1,0 +1,72 @@
+{
+  "provider": "starken",
+  "credentialRef": "starken/example-tenant",
+  "config": {
+    "capabilities": ["quote", "create_shipment", "tracking"],
+    "contract": {
+      "version": "fixture-rest-v1",
+      "baseUrl": "https://sandbox.example.invalid",
+      "allowedHosts": ["sandbox.example.invalid"],
+      "auth": {
+        "mode": "bearer"
+      },
+      "timeoutMs": 10000,
+      "statusMap": {
+        "CREATED": "created",
+        "IN_TRANSIT": "in_transit",
+        "DELIVERED": "delivered"
+      },
+      "operations": {
+        "quote": {
+          "method": "POST",
+          "path": "/quote",
+          "bodyTemplate": {
+            "origin": "{{origin.commune}}",
+            "destination": "{{destination.commune}}",
+            "weight": "{{package.weightKg}}",
+            "length": "{{package.lengthCm}}",
+            "width": "{{package.widthCm}}",
+            "height": "{{package.heightCm}}"
+          },
+          "response": {
+            "itemsPath": "data.services",
+            "serviceCodePath": "code",
+            "serviceNamePath": "name",
+            "amountPath": "price",
+            "estimatedBusinessDaysPath": "days"
+          }
+        },
+        "createShipment": {
+          "method": "POST",
+          "path": "/shipments",
+          "bodyTemplate": {
+            "externalOrderId": "{{externalOrderId}}",
+            "serviceCode": "{{serviceCode}}",
+            "weight": "{{package.weightKg}}"
+          },
+          "response": {
+            "providerShipmentRefPath": "data.freightOrder",
+            "trackingNumberPath": "data.tracking",
+            "labelUrlPath": "data.labelUrl",
+            "statusCodePath": "data.status"
+          }
+        },
+        "tracking": {
+          "method": "POST",
+          "path": "/tracking",
+          "bodyTemplate": {
+            "trackingNumber": "{{trackingNumber}}"
+          },
+          "response": {
+            "eventsPath": "data.events",
+            "providerEventIdPath": "id",
+            "statusCodePath": "status",
+            "occurredAtPath": "occurredAt",
+            "locationPath": "location",
+            "commentPath": "comment"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,4 +1,4 @@
-# MVP runtime — v0.3.0
+# MVP runtime — v0.4.0
 
 **Implementation cut:** 25 August 2026.
 
@@ -18,14 +18,14 @@ This repository now includes an executable MVP for the logistics core described 
 - Append-only audit events.
 - Fastify HTTP API with correlation IDs and redacted secret headers.
 - Mock courier adapter for complete local/sandbox flows.
-- Fail-closed carrier adapter shells for Starken, Blue Express and Chilexpress.
+- Contract-driven Starken REST adapter for `quote`, `create_shipment` and `tracking`, plus fail-closed shells for Blue Express and Chilexpress.
 - Mercado Libre adapter boundary with a certification gate for ME1 publication.
 
 ## Safety boundary
 
 The MVP deliberately does **not** guess private carrier API contracts.
 
-Starken, Blue Express and Chilexpress adapters expose the normalized provider boundary, but shipment/quote operations fail with `integration_gated` until the official account-specific contract is added and tested.
+Starken exposes a contract-driven REST transport but remains `integration_gated` until an authorized tenant contract is configured; Blue Express and Chilexpress remain shell-gated until their official contracts are implemented.
 
 Secrets must not be placed in repository files or normal database rows. Connections store only a `credentialRef`. The default environment resolver maps for example:
 
@@ -174,7 +174,7 @@ Provider code must never infer endpoints from leaked plugins, stale repositories
 
 ## Next MVP increment
 
-The next implementation slice is the first real carrier pilot, preferably Starken:
+The next Starken slice is authorized-contract activation and tenant pilot validation:
 
 - official Starken server-to-server contract;
 - account/sandbox auth;

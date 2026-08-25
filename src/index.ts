@@ -6,16 +6,17 @@ import {
   MockCourierAdapter,
   StarkenAdapter,
 } from './adapters.js';
-import { loadConfig } from './config.js';
+import { EnvSecretProvider, loadConfig } from './config.js';
 import { buildServer } from './server.js';
 import { SqliteStore } from './store.js';
 
 export function createRuntime(env: NodeJS.ProcessEnv = process.env) {
   const config = loadConfig(env);
   const store = new SqliteStore(config.sqlitePath);
+  const secrets = new EnvSecretProvider(env);
   const adapters = new AdapterRegistry([
     new MockCourierAdapter(),
-    new StarkenAdapter(),
+    new StarkenAdapter(secrets),
     new BlueExpressAdapter(),
     new ChilexpressAdapter(),
   ]);

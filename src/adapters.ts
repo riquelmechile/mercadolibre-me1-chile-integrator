@@ -12,6 +12,7 @@ import {
   type ShipmentCreateInput,
 } from './domain.js';
 import type { CourierAdapter, MarketplaceAdapter, SecretProvider } from './ports.js';
+import { ContractDrivenStarkenAdapter } from './starken-contract.js';
 
 export class MockCourierAdapter implements CourierAdapter {
   readonly provider = 'mock' as const;
@@ -82,9 +83,7 @@ abstract class ContractGatedCourierAdapter implements CourierAdapter {
   }
 }
 
-export class StarkenAdapter extends ContractGatedCourierAdapter {
-  readonly provider = 'starken' as const;
-}
+export class StarkenAdapter extends ContractDrivenStarkenAdapter {}
 
 export class BlueExpressAdapter extends ContractGatedCourierAdapter {
   readonly provider = 'blueexpress' as const;

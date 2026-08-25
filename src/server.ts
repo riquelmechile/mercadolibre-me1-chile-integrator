@@ -203,7 +203,7 @@ export function buildServer(options: BuildServerOptions): FastifyInstance {
   app.get('/healthz', async () => ({
     ok: true,
     service: 'mercadolibre-me1-chile-integrator',
-    version: '0.3.0',
+    version: '0.4.0',
     providers: adapters.providers(),
   }));
 
