@@ -1,0 +1,82 @@
+{
+  "profiles": [
+    {
+      "name": "Example flexible product 100",
+      "matchType": "sku",
+      "matchValue": "FLEX-100",
+      "priority": 100,
+      "packingMode": "threshold_growth",
+      "maxQuantity": 50,
+      "package": {
+        "weightKg": 1.25,
+        "lengthCm": 90,
+        "widthCm": 12,
+        "heightCm": 8
+      },
+      "quantityRule": {
+        "threshold": 2,
+        "fixedLengthCm": 120,
+        "baseWidthCm": 13,
+        "baseHeightCm": 9,
+        "widthIncrementCm": 0.4,
+        "heightIncrementCm": 0.2
+      },
+      "metadata": {
+        "source": "fictional-example",
+        "unit": "unit"
+      }
+    },
+    {
+      "name": "Example flexible product 200",
+      "matchType": "sku",
+      "matchValue": "FLEX-200",
+      "priority": 100,
+      "packingMode": "threshold_growth",
+      "maxQuantity": 50,
+      "package": {
+        "weightKg": 0.75,
+        "lengthCm": 60,
+        "widthCm": 15,
+        "heightCm": 8
+      },
+      "quantityRule": {
+        "threshold": 2,
+        "fixedLengthCm": 95,
+        "baseWidthCm": 16,
+        "baseHeightCm": 9,
+        "widthIncrementCm": 0.5,
+        "heightIncrementCm": 0.5
+      },
+      "metadata": {
+        "source": "fictional-example",
+        "unit": "unit"
+      }
+    },
+    {
+      "name": "Example flexible product 300",
+      "matchType": "sku",
+      "matchValue": "FLEX-300",
+      "priority": 100,
+      "packingMode": "threshold_growth",
+      "maxQuantity": 50,
+      "package": {
+        "weightKg": 2.1,
+        "lengthCm": 100,
+        "widthCm": 25,
+        "heightCm": 14
+      },
+      "quantityRule": {
+        "threshold": 2,
+        "fixedLengthCm": 140,
+        "baseWidthCm": 26,
+        "baseHeightCm": 15,
+        "widthIncrementCm": 0.8,
+        "heightIncrementCm": 0.6
+      },
+      "metadata": {
+        "source": "fictional-example",
+        "unit": "unit"
+      }
+    }
+  ]
+}
