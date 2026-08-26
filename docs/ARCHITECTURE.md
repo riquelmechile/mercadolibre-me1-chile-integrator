@@ -1,6 +1,6 @@
 # Architecture — Mercado Libre Chile multi-courier logistics integrator
 
-**Status:** design baseline, 25 August 2026
+**Status:** current implementation + target architecture, 26 August 2026
 
 ## Goals
 
@@ -11,6 +11,20 @@ Primary product paths:
 1. **Custom Shipping automation** for immediate operational use.
 2. **ME1 Dynamic Freight** after certification/homologation.
 3. Optional future **Mercado Libre Flex courier** integration.
+
+## Current runtime boundary — v0.8.2
+
+The executable core already implements the reusable control-plane foundation: tenant/carrier connections, secret references, packaging profiles, versioned tariff and location snapshots, local routing, snapshot-first quotes, atomic shipment idempotency, audit events, tracking normalization and a current official Starken adapter.
+
+A first-production shipment can be exercised without enabling normal carrier automation through three mutually exclusive loopback-only modes:
+
+```text
+preview-only → explicit exact-payload approval/create → observation-only
+```
+
+The observation path can reconcile a provider issuance to a freight order, preserve label evidence and ingest deduplicated/monotonic tracking while the carrier remains disabled. Blue Express and Chilexpress remain contract-gated shells. ME1 Dynamic Freight publication remains certification-gated.
+
+The rest of this document describes both this implemented foundation and the architecture it grows into; future-only components are not implied to exist in v0.8.2.
 
 ## Core principles
 
@@ -395,14 +409,27 @@ Do not dump raw payloads containing PII into permanent audit logs. Store only th
 
 ---
 
-## Initial implementation boundary
+## Current implementation boundary and next milestones
 
-The first runtime milestone should implement only:
+### Implemented in v0.8.2
 
-- tenant skeleton;
-- Mercado Libre seller connection abstraction;
-- one carrier adapter contract;
-- Starken or another provider only after official credentials/spec are obtained;
-- shipment/tracking persistence;
-- idempotency/audit foundations;
-- no ME1 Dynamic Freight production endpoint before DPP/certification prerequisites are satisfied.
+- tenant and seller/carrier connection skeletons with credential references;
+- packaging profiles and deterministic package resolution;
+- versioned tariff and carrier-location snapshots;
+- local provider routing resolution;
+- snapshot-first quotes and explicit live-quote opt-in;
+- atomic, fingerprinted shipment idempotency;
+- canonical tracking persistence, dedupe and monotonic final states;
+- official Starken plugin-gateway quote/create/tracking integration;
+- controlled preview, exact-payload create and shipment-scoped observation while the carrier remains disabled;
+- audit foundations and public/private configuration boundaries.
+
+### Deliberately not implied by the current MVP
+
+- general production automation for a carrier until a tenant explicitly enables it after pilot evidence;
+- finished Blue Express / Chilexpress productive contracts;
+- production ME1 Dynamic Freight publication before DPP/certification prerequisites;
+- complete webhook/queue/DLQ/SLO infrastructure described in the target architecture;
+- final multi-seller SaaS operations, support and billing layers.
+
+These gaps are product milestones, not permission to bypass current safety gates.

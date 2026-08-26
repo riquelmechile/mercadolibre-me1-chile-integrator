@@ -1,6 +1,6 @@
 # Carrier catalog synchronization and routing
 
-**Runtime status: v0.7.0**
+**Runtime status:** current in v0.8.2 · introduced in v0.7.0
 
 The integrator maintains versioned, tenant-scoped carrier location catalogs so provider routing codes are resolved in the control plane instead of being hardcoded in orders or marketplace logic.
 

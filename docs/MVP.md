@@ -1,6 +1,6 @@
 # MVP runtime — v0.8.2
 
-**Implementation cut:** 25 August 2026.
+**Implementation cut:** 26 August 2026.
 
 This repository now includes an executable MVP for the logistics core described in `ARCHITECTURE.md`.
 
@@ -13,8 +13,8 @@ This repository now includes an executable MVP for the logistics core described 
 - Courier connection records for `mock`, `starken`, `blueexpress`, `chilexpress`.
 - Versioned tariff snapshots with one active snapshot per tenant/provider.
 - Snapshot-first quote engine with volumetric-weight support.
-- Idempotent shipment creation with atomic claims and request fingerprints that reject key reuse with a different normalized payload.
-- Mutually exclusive loopback-only controlled preview/create gates for first-production shipment ceremonies while the carrier remains disabled; controlled runtimes lock every other non-GET `/v1/` mutation.
+- Idempotent shipment creation with atomic claims and request fingerprints that reject key reuse with a different normalized payload; provider-returned label evidence is preserved with the shipment.
+- Mutually exclusive loopback-only controlled preview, exact-payload create and shipment-scoped observation gates for first-production ceremonies while the carrier remains disabled; controlled runtimes lock every other non-GET `/v1/` mutation.
 - Canonical tracking events with duplicate detection and monotonic final states.
 - Append-only audit events.
 - Fastify HTTP API with correlation IDs and redacted secret headers.

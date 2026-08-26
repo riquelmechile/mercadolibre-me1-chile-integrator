@@ -1,158 +1,170 @@
 # Mercado Libre ME1 Chile Integrator
 
-Open research and architecture for a **multi-tenant logistics integration platform for Mercado Libre Chile**, with a staged path from Custom shipping automation to a certified Mercado Envíos 1 (ME1) / Dynamic Freight integrator.
+**Provider-neutral logistics control plane for Mercado Libre Chile.**
 
-> Research cut: **25 August 2026 (Chile)**.
->
-> This repository now includes an **executable v0.8.2 MVP runtime** plus the August 2026 research baseline. It contains no production credentials, no private courier endpoints and no live mutations against Mercado Libre or carriers by default.
+Build and validate multi-carrier Custom Shipping flows today, while keeping the quote, shipment, tracking and safety architecture ready for a future certified **Mercado Envíos 1 (ME1) / Dynamic Freight** integration.
 
-## Why this project exists
+<p>
+  <img alt="Runtime v0.8.2" src="https://img.shields.io/badge/runtime-v0.8.2-2563eb">
+  <img alt="63 tests passing" src="https://img.shields.io/badge/tests-63%2F63%20passing-16a34a">
+  <img alt="Node.js 24 or newer" src="https://img.shields.io/badge/node-%E2%89%A524-339933">
+  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-runtime-3178c6">
+  <img alt="ME1 production gate disabled" src="https://img.shields.io/badge/ME1%20production-gated-f59e0b">
+</p>
 
-Mercado Libre Chile allows sellers to manage heavy/bulky shipments through **ME1** using their own logistics or third parties. Chilean carriers including **Starken, Blue Express, Chilexpress and CorreosChile** expose integration capabilities that can automate quotes, transport orders/labels and tracking. Today these capabilities are often consumed through paid middleware.
+<img src="https://raw.githubusercontent.com/riquelmechile/mercadolibre-me1-chile-integrator/main/docs/assets/control-plane.svg" alt="Controlled shipment lifecycle: preview, explicit approval, one create attempt and observation while the carrier connection remains disabled." width="100%">
 
-The goal is to build a provider-neutral logistics core that can:
+> **Current release:** `v0.8.2` · research baseline: Chile, August 2026.
+> The repository contains an executable MVP, public research and generic provider adapters. It contains **no tenant production credentials, buyer data or private pilot configuration**.
 
-1. automate existing Mercado Libre **Custom** shipments;
-2. connect directly to carrier APIs where contractual access is available;
-3. onboard external sellers safely;
-4. accumulate real seller usage/GMV;
-5. qualify for the Mercado Libre **Developer Partner Program (DPP)**;
-6. complete **Dynamic Freight homologation** and operate as a certified ME1 integrator.
+## What works today
 
-## Current conclusions
+| Capability | State | Current implementation |
+|---|---|---|
+| Multi-tenant logistics runtime | ✅ Implemented | Node.js 24 + TypeScript + Fastify + SQLite |
+| Snapshot-first quoting | ✅ Implemented | Versioned tariff snapshots, coverage and volumetric weight |
+| Packaging resolution | ✅ Implemented | SKU/family/default profiles with quantity-aware packing rules |
+| Carrier location catalogs | ✅ Implemented | Versioned region/city/commune/agency catalogs and local routing |
+| Starken quote / OF / tracking | ✅ Implemented | Official plugin-gateway protocol with evidence-based mappings |
+| Controlled first-production lifecycle | ✅ Implemented | Preview → exact approval/create → observation while carrier stays disabled |
+| Shipment idempotency | ✅ Implemented | Atomic claims + normalized request fingerprint |
+| Tracking normalization | ✅ Implemented | Deduplication, deterministic ordering and monotonic final states |
+| Blue Express / Chilexpress | 🔒 Contract-gated | Provider shells exist; production mappings wait for official contracts |
+| ME1 Dynamic Freight production | 🔒 Certification-gated | Architecture exists; production publication remains disabled |
 
-- **ME1 is active in Chile** and is intended for products that are not eligible for ME2 because of size/weight/logistics constraints.
-- **Dynamic Freight homologation is restricted to certified integrators**. A technically correct endpoint alone is not enough.
-- For Chile, DPP currently requires active sellers using the solution with at least **USD 200,000 monthly GMV** in aggregate and a **Security Assessment score of at least 65%**.
-- **ME1 tracking V2 is already in production**. V1 is scheduled to be discontinued on **31 October 2026**.
-- Mercado Libre applications must be separated between Mercado Libre and Mercado Pago starting **30 August 2026**.
-- Chile's **Law 21.719** on personal data enters into force on **1 December 2026**, which is directly relevant because logistics integrations process buyer names, addresses, phone numbers and shipment history.
+The runtime deliberately fails closed when provider evidence, credentials, routing, status mappings or certification prerequisites are incomplete.
 
-## Carrier status
+## The controlled shipment safety model
 
-| Provider | Direct integration confirmed | Public capabilities confirmed | Access status |
-|---|---:|---|---|
-| Starken | Yes | Quote, OF issuance, label/plugin flow, tracking, POD, reverse logistics | Official plugin gateway implemented; token remains runtime-secret; enterprise contracts may still differ |
-| Blue Express | Yes | Checkout rates, labels, tracking, pickup/ecommerce flows | API credentials managed through account/KAM; detailed production API is gated |
-| Chilexpress | Yes | Address normalization, quote, OT/label, tracking push/pull, coverage, returns | Productive API credentials explicitly requested from Chilexpress |
-| CorreosChile | Yes | Services, coverage, tariffs, admission, labels, branches, pickup, tracking | Developer portal is public; productive credentials require client account |
-| Shipit | Yes (aggregator) | Multi-courier quote, shipment creation, tracking, coverage, webhooks | Public developer docs; token + account email |
+The first real shipment for a newly integrated carrier should not require enabling normal automation.
 
-See [`docs/COURIERS.md`](docs/COURIERS.md) for the evidence matrix and unresolved items.
+1. **Preview-only** — obtain a live quote and let the server derive the normalized create-payload SHA-256.
+2. **Explicit approval** — a human approves the exact shipment summary and exact digest.
+3. **Approval-only create** — one idempotent provider create attempt is allowed for that exact payload.
+4. **Observation-only** — reconcile issuance → freight order and ingest tracking through short-lived read-only sessions.
 
-## Target architecture
+Throughout the ceremony, `CarrierConnection.enabled` remains `false`. Controlled modes are loopback-only, mutually exclusive, limited to ≤60-minute windows, use ephemeral secret hashes and lock unrelated mutations.
 
-```text
-Mercado Libre
-  │
-  ├─ OAuth / Orders / Shipments / Custom
-  ├─ ME1 Dynamic Freight
-  └─ seller_notifications V2
-          │
-          ▼
-┌──────────────────────────────────────────┐
-│           Logistics Integration Core     │
-│                                          │
-│  Tenant/Auth                             │
-│  Quote Engine + tariff snapshots/cache  │
-│  Shipment Orchestrator                   │
-│  Tracking Normalizer                     │
-│  Audit/Event Store                       │
-│  Retry / DLQ / Idempotency               │
-│  Metrics / SLO / Contingency             │
-└──────────────────────────────────────────┘
-       │          │          │          │
-       ▼          ▼          ▼          ▼
-   Starken   Blue Express  Chilexpress  CorreosChile
-                                    └── optional aggregators (Shipit, etc.)
+Read the full contract in [`docs/CONTROLLED-SHIPMENT-CEREMONY.md`](docs/CONTROLLED-SHIPMENT-CEREMONY.md).
+
+## Run it locally
+
+The shortest successful path uses the mock carrier and never touches a production provider.
+
+```bash
+npm ci
+cp .env.example .env
+npm run check
+npm run dev
 ```
 
-A core design rule is that the **Dynamic Freight quote path must not synchronously depend on carrier API availability**. Carrier tariffs/capabilities should be synchronized into versioned snapshots/cache so Mercado Libre can receive a fast deterministic quote even when a carrier API is slow or unavailable.
+Default local bind:
 
-## Roadmap
+```text
+http://127.0.0.1:8787
+```
 
-**Phase A — research + contracts**  
-Confirm API commercial access, auth, sandboxes, rate limits, idempotency, cancellation/returns and SLA for each carrier.
+Verify the runtime:
 
-**Phase B — Custom Shipping SaaS**  
-Automate Mercado Libre Custom shipments using direct carrier adapters. Use an internal pilot tenant first, then onboard external pilot sellers.
+```bash
+curl http://127.0.0.1:8787/healthz
+curl http://127.0.0.1:8787/readyz
+```
 
-**Phase C — DPP readiness**  
-Multi-tenancy, seller OAuth, PII controls, audit, reliability, support and seller GMV instrumentation. Reach the Chile DPP threshold with active users.
+For the complete tenant → carrier → tariff snapshot → quote → shipment example, follow [`docs/MVP.md`](docs/MVP.md).
 
-**Phase D — Dynamic Freight homologation**  
-Complete Mercado Libre certification, security review, latency/cache/contingency requirements and ME1 Dynamic Freight tests.
+## Mental model
 
-**Phase E — certified logistics product**  
-Offer ME1 + multiple carriers as a commercial service to other Mercado Libre sellers.
+```text
+Mercado Libre / seller workflows
+              │
+              ▼
+┌──────────────────────────────────────────────┐
+│          Logistics Integration Core          │
+│                                              │
+│ tenant isolation    packaging + routing      │
+│ snapshot quotes     idempotent shipments     │
+│ audit/events        tracking normalization   │
+└───────────────────────┬──────────────────────┘
+                        │ provider-neutral contract
+                        ▼
+            CourierAdapter registry
+               │       │       │
+               ▼       ▼       ▼
+            Starken   Blue   Chilexpress   …
+```
 
-Detailed exit criteria are in [`docs/ROADMAP.md`](docs/ROADMAP.md).
+Three rules shape the system:
 
-## Critical 2026 dates
+- **Snapshot-first quote path** — future Dynamic Freight quoting must not depend synchronously on carrier availability when a valid local snapshot exists.
+- **Evidence-based adapters** — undocumented provider production contracts are not guessed into the repository.
+- **Tenant + secret isolation** — operational records keep `credentialRef` values; raw credentials remain in the runtime secret provider.
 
-- **30 Aug 2026** — Mercado Libre / Mercado Pago applications must be separated.
-- **14 Sep 2026** — new ME1 V2 tracking buyer experience expected fully productive.
-- **31 Oct 2026** — ME1 `seller_notifications` V1 discontinued.
-- **1 Dec 2026** — Chile Law 21.719 enters into force.
+See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full target architecture and current implementation boundary.
 
-See [`docs/CHANGES-2026.md`](docs/CHANGES-2026.md).
+## Carrier integration status
 
-## Documentation
+| Provider | Public integration evidence | Runtime state |
+|---|---|---|
+| **Starken** | Quote, OF issuance, label/plugin flow, tracking, POD, reverse logistics | Official plugin gateway implemented |
+| **Blue Express** | Ecommerce rates, labels, tracking, pickup flows | Contract-gated adapter shell |
+| **Chilexpress** | Address, quote, OT/label, tracking, coverage, returns | Contract-gated adapter shell |
+| **CorreosChile** | Services, coverage, tariffs, admission, labels, branches, pickup, tracking | Research / future adapter |
+| **Shipit** | Multi-courier quote, shipment creation, tracking, coverage, webhooks | Optional aggregator research |
 
-- [`RESEARCH.md`](RESEARCH.md) — primary research and source ledger.
-- [`docs/COURIERS.md`](docs/COURIERS.md) — carrier/API capability matrix.
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — target system architecture.
-- [`docs/ROADMAP.md`](docs/ROADMAP.md) — staged delivery and certification plan.
-- [`docs/CHANGES-2026.md`](docs/CHANGES-2026.md) — upcoming deadlines and migrations.
-- [`docs/MVP.md`](docs/MVP.md) — executable runtime, local API and integration contract workflow.
-- [`docs/STARKEN-CONTRACT.md`](docs/STARKEN-CONTRACT.md) — official Starken plugin-gateway adapter, contract-driven fallback, safety model and activation checklist.
-- [`docs/CARRIER-CATALOGS.md`](docs/CARRIER-CATALOGS.md) — versioned carrier location catalogs, local routing resolution and agency acceptance limits.
-- [`docs/STARKEN-EVIDENCE.md`](docs/STARKEN-EVIDENCE.md) — provenance ledger separating current official evidence from historical/third-party clues.
-- [`docs/PUBLIC-PRIVATE-BOUNDARY.md`](docs/PUBLIC-PRIVATE-BOUNDARY.md) — repository boundary for generic product code vs tenant-specific pilot data.
-- [`docs/AUTOMATIC-SHIPPING.md`](docs/AUTOMATIC-SHIPPING.md) — automatic packaging from a SKU/family dimension list and order-to-shipment flow.
-- [`docs/CONTROLLED-SHIPMENT-CEREMONY.md`](docs/CONTROLLED-SHIPMENT-CEREMONY.md) — loopback-only preview + exact-payload one-shot production ceremony while normal carrier automation stays disabled.
+The evidence matrix and unresolved contract questions live in [`docs/COURIERS.md`](docs/COURIERS.md).
 
-## Evidence policy
+## Documentation by task
 
-This repository uses three evidence states:
+| I want to… | Start here |
+|---|---|
+| run the executable MVP | [`docs/MVP.md`](docs/MVP.md) |
+| understand the system architecture | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
+| understand automatic packaging/shipping | [`docs/AUTOMATIC-SHIPPING.md`](docs/AUTOMATIC-SHIPPING.md) |
+| understand carrier location catalogs | [`docs/CARRIER-CATALOGS.md`](docs/CARRIER-CATALOGS.md) |
+| inspect the Starken runtime contract | [`docs/STARKEN-CONTRACT.md`](docs/STARKEN-CONTRACT.md) |
+| audit Starken evidence provenance | [`docs/STARKEN-EVIDENCE.md`](docs/STARKEN-EVIDENCE.md) |
+| run a controlled first shipment | [`docs/CONTROLLED-SHIPMENT-CEREMONY.md`](docs/CONTROLLED-SHIPMENT-CEREMONY.md) |
+| understand public/private repository boundaries | [`docs/PUBLIC-PRIVATE-BOUNDARY.md`](docs/PUBLIC-PRIVATE-BOUNDARY.md) |
+| follow certification/product milestones | [`docs/ROADMAP.md`](docs/ROADMAP.md) |
+| review 2026 migrations/deadlines | [`docs/CHANGES-2026.md`](docs/CHANGES-2026.md) |
+| inspect research and primary sources | [`RESEARCH.md`](RESEARCH.md) |
 
-- `CONFIRMED_PUBLIC_API` — official public documentation exposes the integration/API contract.
-- `CONFIRMED_GATED_API` — official source confirms API capability, but credentials/specification require a commercial account, KAM or onboarding.
-- `RESEARCH_REQUIRED` — integration is plausible but not yet supported by sufficiently current official evidence.
+## Path to a certified ME1 product
 
-No private endpoint or authentication mechanism should be committed based only on an old GitHub snippet, leaked plugin code or third-party blog.
+```text
+A. Official carrier contracts + direct adapters
+              ↓
+B. Custom Shipping SaaS with internal/external pilots
+              ↓
+C. DPP readiness: security, tenants, support, seller GMV
+              ↓
+D. Dynamic Freight homologation + contingency/SLO tests
+              ↓
+E. Certified multi-carrier ME1 logistics product
+```
 
-## Primary sources
+Production ME1 publication remains intentionally gated. A technically correct endpoint is not treated as certification.
 
-Mercado Libre:
-- https://developers.mercadolibre.cl/mercadoenvios-modo-1
-- https://developers.mercadolibre.cl/en_us/dynamic-freight
-- https://developers.mercadolibre.cl/es_ar/atributos-y-variaciones/developer-partner-program
-- https://developers.mercadolibre.cl/estados-de-ordenes-me1
-- https://developers.mercadolibre.cl/crea-una-aplicacion-en-mercado-libre-es
-- https://developers.mercadolibre.cl/envios-flex
+### Near-term 2026 gates tracked by this repository
 
-Carriers:
-- https://www.starken.cl/integraciones
-- https://starkenpro.cl/Integraciondeplugin
-- https://www.blue.cl/empresas/soluciones-ecommerce
-- https://chilexpress.cl/servicio-ecommerce-comercio-electronico-chile
-- https://developers.correos.cl/
-- https://developers.shipit.cl/reference/comienza-con-nuestra-api
+- **30 Aug 2026** — Mercado Libre / Mercado Pago applications separation.
+- **14 Sep 2026** — ME1 V2 tracking buyer-experience rollout milestone tracked by the research baseline.
+- **31 Oct 2026** — ME1 `seller_notifications` V1 discontinuation.
+- **1 Dec 2026** — Chile Law 21.719 personal-data regime enters into force.
 
-Chile:
-- https://www.bcn.cl/leychile/Navegar?idNorma=1209272&idVersion=2026-12-01
+See [`docs/CHANGES-2026.md`](docs/CHANGES-2026.md) for the maintained change ledger.
 
-## MVP runtime
+## Evidence and repository boundaries
 
-The first executable runtime is implemented with **Node.js 24 + TypeScript + Fastify + SQLite**. It includes tenant isolation, credential references, tariff snapshots, snapshot-first quotes, idempotent shipment creation, canonical tracking, audit logs and fail-closed provider adapters.
+Provider claims are classified as:
 
-Version **0.2.0** also adds durable packaging profiles (`sku` / `family` / `default`), quantity-aware packing rules, bulk dimension-list import, deterministic carrier selection and `POST /v1/automatic-shipments`, so runtime requests no longer need to send package dimensions.
+- `CONFIRMED_PUBLIC_API` — current official public documentation exposes the contract.
+- `CONFIRMED_GATED_API` — official evidence confirms the capability, but specification/credentials require commercial onboarding.
+- `RESEARCH_REQUIRED` — implementation must remain gated until stronger evidence exists.
 
-v0.8.2 also adds a loopback-only controlled observation runtime for reconciling and polling a previously controlled shipment while its carrier remains disabled. See [`docs/CONTROLLED-SHIPMENT-CEREMONY.md`](docs/CONTROLLED-SHIPMENT-CEREMONY.md).
+The public repository contains reusable product code and public evidence only. Tenant-specific origins, measured commercial data, credentials, buyer information and production-order evidence belong in private tenant overlays or secret stores. See [`docs/PUBLIC-PRIVATE-BOUNDARY.md`](docs/PUBLIC-PRIVATE-BOUNDARY.md).
 
-See [`docs/MVP.md`](docs/MVP.md) for local setup, endpoints and the procedure for loading the first official carrier contract.
+## Current project status
 
-## Status
-
-**Research baseline: active. MVP runtime v0.8.2 implements automatic dimension-list shipping, versioned carrier location catalogs, local routing-code resolution, agency-limit enforcement, generic home/agency + payment/value intent, the current official Starken plugin gateway, and a loopback-only controlled first-shipment ceremony that keeps normal carrier automation disabled. Dynamic Freight remains snapshot-first and the ME1 certification gate remains disabled.**
+**Research baseline active · executable MVP v0.8.2 · Starken controlled lifecycle implemented · normal carrier automation disabled until explicitly activated · Dynamic Freight production still certification-gated.**
