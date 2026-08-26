@@ -1,6 +1,7 @@
 import type {
   AuditEvent,
   CarrierCapability,
+  CarrierLocationCatalogSnapshot,
   CarrierConnection,
   CarrierProvider,
   IdempotencyRecord,
@@ -56,6 +57,9 @@ export interface Store {
   createCarrierConnection(connection: CarrierConnection): CarrierConnection;
   getCarrierConnection(tenantId: string, provider: CarrierProvider): CarrierConnection | null;
   listCarrierConnections(tenantId: string): CarrierConnection[];
+
+  createCarrierLocationCatalog(snapshot: CarrierLocationCatalogSnapshot): CarrierLocationCatalogSnapshot;
+  getActiveCarrierLocationCatalog(tenantId: string, provider: CarrierProvider): CarrierLocationCatalogSnapshot | null;
 
   createSellerConnection(connection: SellerConnection): SellerConnection;
   getSellerConnection(tenantId: string, sellerId: string): SellerConnection | null;

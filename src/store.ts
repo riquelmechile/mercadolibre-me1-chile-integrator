@@ -4,6 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 import type {
   AuditEvent,
   CarrierConnection,
+  CarrierLocationCatalogSnapshot,
   CarrierProvider,
   IdempotencyRecord,
   PackagingProfile,
@@ -59,6 +60,22 @@ export class SqliteStore implements Store {
         created_at TEXT NOT NULL,
         UNIQUE(tenant_id, provider)
       );
+
+      CREATE TABLE IF NOT EXISTS carrier_location_catalog_snapshots (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        provider TEXT NOT NULL,
+        version TEXT NOT NULL,
+        active INTEGER NOT NULL,
+        regions_json TEXT NOT NULL,
+        cities_json TEXT NOT NULL,
+        communes_json TEXT NOT NULL,
+        agencies_json TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        UNIQUE(tenant_id, provider, version)
+      );
+      CREATE INDEX IF NOT EXISTS idx_carrier_catalog_active
+        ON carrier_location_catalog_snapshots(tenant_id, provider, active);
 
       CREATE TABLE IF NOT EXISTS seller_connections (
         id TEXT PRIMARY KEY,
@@ -224,6 +241,59 @@ export class SqliteStore implements Store {
       credentialRef: row.credential_ref == null ? null : String(row.credential_ref),
       enabled: asBool(row.enabled),
       config: parseJson<Record<string, unknown>>(row.config_json),
+      createdAt: String(row.created_at),
+    };
+  }
+
+  createCarrierLocationCatalog(snapshot: CarrierLocationCatalogSnapshot): CarrierLocationCatalogSnapshot {
+    this.db.exec('BEGIN IMMEDIATE;');
+    try {
+      if (snapshot.active) {
+        this.db.prepare('UPDATE carrier_location_catalog_snapshots SET active=0 WHERE tenant_id=? AND provider=?')
+          .run(snapshot.tenantId, snapshot.provider);
+      }
+      const existing = this.db.prepare(
+        'SELECT * FROM carrier_location_catalog_snapshots WHERE tenant_id=? AND provider=? AND version=?',
+      ).get(snapshot.tenantId, snapshot.provider, snapshot.version) as Record<string, unknown> | undefined;
+      if (existing) {
+        if (snapshot.active) {
+          this.db.prepare('UPDATE carrier_location_catalog_snapshots SET active=1 WHERE id=?').run(String(existing.id));
+        }
+        this.db.exec('COMMIT;');
+        return this.mapCarrierLocationCatalog({ ...existing, active: snapshot.active ? 1 : existing.active });
+      }
+      this.db.prepare(
+        'INSERT INTO carrier_location_catalog_snapshots(id,tenant_id,provider,version,active,regions_json,cities_json,communes_json,agencies_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)',
+      ).run(
+        snapshot.id, snapshot.tenantId, snapshot.provider, snapshot.version, snapshot.active ? 1 : 0,
+        JSON.stringify(snapshot.regions), JSON.stringify(snapshot.cities), JSON.stringify(snapshot.communes), JSON.stringify(snapshot.agencies), snapshot.createdAt,
+      );
+      this.db.exec('COMMIT;');
+      return snapshot;
+    } catch (error) {
+      this.db.exec('ROLLBACK;');
+      throw error;
+    }
+  }
+
+  getActiveCarrierLocationCatalog(tenantId: string, provider: CarrierProvider): CarrierLocationCatalogSnapshot | null {
+    const row = this.db.prepare(
+      'SELECT * FROM carrier_location_catalog_snapshots WHERE tenant_id=? AND provider=? AND active=1 ORDER BY created_at DESC LIMIT 1',
+    ).get(tenantId, provider) as Record<string, unknown> | undefined;
+    return row ? this.mapCarrierLocationCatalog(row) : null;
+  }
+
+  private mapCarrierLocationCatalog(row: Record<string, unknown>): CarrierLocationCatalogSnapshot {
+    return {
+      id: String(row.id),
+      tenantId: String(row.tenant_id),
+      provider: String(row.provider) as CarrierProvider,
+      version: String(row.version),
+      active: asBool(row.active),
+      regions: parseJson<CarrierLocationCatalogSnapshot['regions']>(row.regions_json),
+      cities: parseJson<CarrierLocationCatalogSnapshot['cities']>(row.cities_json),
+      communes: parseJson<CarrierLocationCatalogSnapshot['communes']>(row.communes_json),
+      agencies: parseJson<CarrierLocationCatalogSnapshot['agencies']>(row.agencies_json),
       createdAt: String(row.created_at),
     };
   }

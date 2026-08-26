@@ -20,7 +20,7 @@ export function createRuntime(env: NodeJS.ProcessEnv = process.env) {
     new BlueExpressAdapter(),
     new ChilexpressAdapter(),
   ]);
-  const app = buildServer({ store, adapters, config });
+  const app = buildServer({ store, adapters, config, secrets });
   return { app, store, adapters, config };
 }
 

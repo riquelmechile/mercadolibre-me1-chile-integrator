@@ -64,7 +64,7 @@ function isLoopback(hostname: string): boolean {
   return host === '127.0.0.1' || host === 'localhost' || host === '::1' || host.endsWith('.localhost');
 }
 
-function baseUrlFor(connection: CarrierConnection): URL {
+export function starkenOfficialBaseUrlFor(connection: CarrierConnection): URL {
   const override = optionalConfigString(connection, 'testBaseUrl');
   if (!override) return new URL(OFFICIAL_BASE_URL);
   let url: URL;
@@ -74,7 +74,7 @@ function baseUrlFor(connection: CarrierConnection): URL {
   return url;
 }
 
-function endpointUrl(base: URL, path: string): URL {
+export function starkenOfficialEndpointUrl(base: URL, path: string): URL {
   if (!path.startsWith('/')) throw gated('Starken official path must be absolute within the configured base path');
   const url = new URL(base.toString());
   const prefix = url.pathname.endsWith('/') ? url.pathname.slice(0, -1) : url.pathname;
@@ -373,8 +373,8 @@ export class OfficialStarkenPluginAdapter implements CourierAdapter {
 
   private async request(connection: CarrierConnection, path: string, method: 'GET' | 'POST', body?: JsonRecord): Promise<unknown> {
     if (!connection.credentialRef) throw gated('Starken connection requires credentialRef before network access');
-    const base = baseUrlFor(connection);
-    const url = endpointUrl(base, path);
+    const base = starkenOfficialBaseUrlFor(connection);
+    const url = starkenOfficialEndpointUrl(base, path);
     if (url.origin !== base.origin) throw gated('Starken official request escaped its fixed origin');
     const secret = await this.secrets.resolve(connection.credentialRef);
     let response: Response;

@@ -117,7 +117,7 @@ This deliberately prefers conservative dimensions over underestimating freight. 
 ## What remains before production
 
 1. replace template values with measured packed dimensions for each tenant's SKUs/families;
-2. synchronize Starken routing catalogs and load Blue Express/Chilexpress contracts as they are authorized;
+2. operate scheduled Starken catalog refresh/monitoring and load Blue Express/Chilexpress contracts as they are authorized;
 3. implement tariff/coverage sync jobs feeding `TariffSnapshot`;
 4. connect the Mercado Libre paid-order notification to the automatic request builder;
 5. validate provider-specific package limits and multi-package semantics.

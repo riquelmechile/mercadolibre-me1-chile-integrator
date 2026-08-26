@@ -77,6 +77,82 @@ export interface AddressPoint {
   unit?: string;
 }
 
+export interface CarrierCatalogRegion {
+  sourceId?: string;
+  providerCode: string;
+  name: string;
+  pickupEnabled?: boolean;
+}
+
+export interface CarrierCatalogCity {
+  sourceId?: string;
+  providerCode: string;
+  name: string;
+  regionCode: string;
+  regionName: string;
+  pickupEnabled?: boolean;
+  indirectDestination?: boolean;
+}
+
+export interface CarrierCatalogCommune {
+  sourceId?: string;
+  providerCode: string;
+  name: string;
+  cityCode: string;
+  cityName: string;
+  pickupEnabled?: boolean;
+}
+
+export interface CarrierCatalogAgency {
+  sourceId?: string;
+  providerCode: string;
+  name: string;
+  communeCode: string;
+  communeName: string;
+  cityCode: string;
+  address?: string;
+  latitude?: number;
+  longitude?: number;
+  active: boolean;
+  shipping: boolean;
+  delivery: boolean;
+  maxLengthCm?: number;
+  maxWidthCm?: number;
+  maxHeightCm?: number;
+  maxDeclaredValueClp?: number;
+  weightRestriction?: string;
+}
+
+export interface CarrierLocationCatalogSnapshot {
+  id: string;
+  tenantId: string;
+  provider: CarrierProvider;
+  version: string;
+  active: boolean;
+  regions: CarrierCatalogRegion[];
+  cities: CarrierCatalogCity[];
+  communes: CarrierCatalogCommune[];
+  agencies: CarrierCatalogAgency[];
+  createdAt: string;
+}
+
+export interface CarrierRoutingResolveInput {
+  tenantId: string;
+  provider: CarrierProvider;
+  address: AddressPoint;
+  deliveryMode?: DeliveryMode;
+  agencyName?: string;
+  agencyCode?: string;
+  package?: PackageSpec;
+  declaredValueClp?: number;
+}
+
+export interface CarrierRoutingResolution {
+  catalogVersion: string;
+  address: AddressPoint;
+  agency?: CarrierCatalogAgency;
+}
+
 export interface ShipmentRecipient {
   taxId?: string;
   firstName: string;
@@ -141,6 +217,7 @@ export interface AutomaticShipmentRequest {
   declaredValueClp?: number;
   recipient?: ShipmentRecipient;
   allowLiveQuotes?: boolean;
+  routeWithCatalog?: boolean;
   idempotencyKey: string;
 }
 

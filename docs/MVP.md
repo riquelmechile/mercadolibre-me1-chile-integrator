@@ -1,4 +1,4 @@
-# MVP runtime — v0.6.0
+# MVP runtime — v0.7.0
 
 **Implementation cut:** 25 August 2026.
 
@@ -25,7 +25,7 @@ This repository now includes an executable MVP for the logistics core described 
 
 The MVP deliberately does **not** guess private carrier API contracts.
 
-Starken can run through `starken-plugin-gateway-v1` when a tenant provides only a `credentialRef` plus verified routing/status configuration; Blue Express and Chilexpress remain shell-gated until their official contracts are implemented.
+Starken can run through `starken-plugin-gateway-v1`; v0.7.0 can explicitly synchronize its location catalogs and resolve provider city/commune/agency codes locally from the active versioned snapshot. Blue Express and Chilexpress remain shell-gated until their official contracts are implemented.
 
 Secrets must not be placed in repository files or normal database rows. Connections store only a `credentialRef`. The default environment resolver maps for example:
 
@@ -176,7 +176,7 @@ Provider code must never infer endpoints from leaked plugins, stale repositories
 
 The next Starken slice is controlled tenant pilot hardening:
 
-- generic Starken catalog synchronization and routing-code resolution;
+- scheduled/observable Starken catalog refresh policy and drift alerting;
 - account/sandbox auth;
 - quote mapping;
 - OF/shipment creation;
@@ -188,7 +188,7 @@ The next Starken slice is controlled tenant pilot hardening:
 ME1 Dynamic Freight production remains a later certification milestone.
 
 
-## Generic delivery intent — v0.6.0
+## Generic delivery intent — v0.7.0
 
 Quote and automatic-shipment requests may now express logistics intent without provider-specific codes:
 

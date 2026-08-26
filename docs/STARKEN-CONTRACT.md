@@ -162,7 +162,7 @@ Read-only validation showed that agency catalog records expose operational const
 - pickup/delivery flags;
 - geolocation and schedules.
 
-The core does not yet enforce those agency-level constraints automatically; that belongs in the next generic carrier-location/catalog synchronization layer.
+The v0.7.0 carrier-location catalog layer normalizes positive agency length/width/height/value limits and enforces them during local agency routing. Provider zero values are treated as unspecified rather than zero capacity; the opaque `weight_restriction` value is preserved without inventing numeric semantics.
 
 ## Capabilities still gated
 
@@ -173,7 +173,7 @@ The following are confirmed Starken product capabilities but are not yet adverti
 - POD retrieval;
 - cancellation/returns;
 - label reprint and Zebra-specific output;
-- automatic agency/catalog synchronization;
+- scheduled catalog refresh, drift monitoring and operational alerting;
 - a complete verified tracking-status map.
 
 The adapter must not claim these capabilities until their runtime semantics and tests exist.

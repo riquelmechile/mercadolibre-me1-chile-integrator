@@ -89,7 +89,7 @@ Known normalized mappings currently allowed:
 
 Any other service/payment/delivery code fails closed unless later verified evidence explicitly adds it.
 
-## Evidence-to-runtime matrix — v0.6.0
+## Evidence-to-runtime matrix — v0.7.0
 
 | Concept | Evidence state | Runtime state |
 |---|---|---|
@@ -104,7 +104,7 @@ Any other service/payment/delivery code fails closed unless later verified evide
 | label URL from emission/consultation | official artifact | normalized on create when present |
 | tracking history shape | official artifact | implemented; provider statuses require explicit tenant map |
 | `allowLiveQuotes` | product policy | opt-in only; false by default; Dynamic Freight remains snapshot-first |
-| agency physical constraints | live readonly catalog | evidence recorded; automatic enforcement not yet implemented |
+| agency physical constraints | live readonly catalog | implemented through versioned catalog sync + local routing enforcement for positive dimension/value limits |
 | complete tracking status map | insufficient verified semantics | **gated** |
 | multi-package | official vendor listing | **gated** |
 | pickup/POD/returns/cancel | official product capability | **gated** |

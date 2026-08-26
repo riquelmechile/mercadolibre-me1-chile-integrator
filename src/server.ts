@@ -24,7 +24,8 @@ import {
 } from './domain.js';
 import { LogisticsService } from './services.js';
 import { AutomaticShippingService, PackagingResolver } from './packaging.js';
-import type { Store } from './ports.js';
+import { CarrierRoutingResolver, StarkenCatalogSyncService } from './starken-catalog.js';
+import type { SecretProvider, Store } from './ports.js';
 
 const providers = new Set<CarrierProvider>(['mock', 'starken', 'blueexpress', 'chilexpress']);
 const packagingMatchTypes = new Set<PackagingMatchType>(['sku', 'family', 'default']);
@@ -205,17 +206,20 @@ export interface BuildServerOptions {
   store: Store;
   adapters: AdapterRegistry;
   config: AppConfig;
+  secrets?: SecretProvider;
 }
 
 export function buildServer(options: BuildServerOptions): FastifyInstance {
-  const { store, adapters, config } = options;
+  const { store, adapters, config, secrets } = options;
   const loopbackHosts = new Set(['127.0.0.1', 'localhost', '::1']);
   if (!loopbackHosts.has(config.host) && !config.apiKey) {
     throw new Error('APP_API_KEY is required when binding outside loopback');
   }
   const logistics = new LogisticsService(store, adapters);
   const packaging = new PackagingResolver(store);
-  const automaticShipping = new AutomaticShippingService(store, logistics, packaging);
+  const routing = new CarrierRoutingResolver(store);
+  const automaticShipping = new AutomaticShippingService(store, logistics, packaging, routing);
+  const starkenCatalogSync = secrets ? new StarkenCatalogSyncService(store, secrets) : null;
   const app = Fastify({
     logger: { level: config.logLevel, redact: ['req.headers.authorization', '*.token', '*.secret', '*.password'] },
     genReqId: (request) => String(request.headers['x-correlation-id'] ?? newId()),
@@ -247,7 +251,7 @@ export function buildServer(options: BuildServerOptions): FastifyInstance {
   app.get('/healthz', async () => ({
     ok: true,
     service: 'mercadolibre-me1-chile-integrator',
-    version: '0.5.0',
+    version: '0.7.0',
     providers: adapters.providers(),
   }));
 
@@ -293,6 +297,53 @@ export function buildServer(options: BuildServerOptions): FastifyInstance {
     const { tenantId } = request.params as { tenantId: string };
     if (!store.getTenant(tenantId)) throw new NotFoundError('Tenant not found', { tenantId });
     return store.listCarrierConnections(tenantId);
+  });
+
+  app.post('/v1/tenants/:tenantId/carriers/:provider/catalog/sync', async (request, reply) => {
+    const { tenantId, provider: rawProvider } = request.params as { tenantId: string; provider: string };
+    const provider = providerOf(rawProvider);
+    if (provider !== 'starken') throw new AppError('catalog_sync_not_implemented', 'Catalog sync is not implemented for this provider', 422, { provider });
+    const connection = store.getCarrierConnection(tenantId, provider);
+    if (!connection) throw new NotFoundError('Carrier connection not found', { tenantId, provider });
+    if (!starkenCatalogSync) throw new AppError('integration_gated', 'Runtime secret provider is required for catalog sync', 503, { provider });
+    const snapshot = await starkenCatalogSync.sync(connection);
+    return reply.status(201).send({
+      provider: snapshot.provider,
+      version: snapshot.version,
+      active: snapshot.active,
+      counts: { regions: snapshot.regions.length, cities: snapshot.cities.length, communes: snapshot.communes.length, agencies: snapshot.agencies.length },
+      createdAt: snapshot.createdAt,
+    });
+  });
+
+  app.get('/v1/tenants/:tenantId/carriers/:provider/catalog', async (request) => {
+    const { tenantId, provider: rawProvider } = request.params as { tenantId: string; provider: string };
+    const provider = providerOf(rawProvider);
+    const snapshot = store.getActiveCarrierLocationCatalog(tenantId, provider);
+    if (!snapshot) throw new NotFoundError('No active carrier location catalog', { tenantId, provider });
+    return {
+      provider: snapshot.provider,
+      version: snapshot.version,
+      active: snapshot.active,
+      counts: { regions: snapshot.regions.length, cities: snapshot.cities.length, communes: snapshot.communes.length, agencies: snapshot.agencies.length },
+      createdAt: snapshot.createdAt,
+    };
+  });
+
+  app.post('/v1/tenants/:tenantId/carriers/:provider/routing/resolve', async (request) => {
+    const { tenantId, provider: rawProvider } = request.params as { tenantId: string; provider: string };
+    const provider = providerOf(rawProvider);
+    const body = objectBody(request);
+    return routing.resolve({
+      tenantId,
+      provider,
+      address: addressOf(body.address, 'address'),
+      ...(optionalEnum(body, 'deliveryMode', deliveryModes) ? { deliveryMode: optionalEnum(body, 'deliveryMode', deliveryModes)! } : {}),
+      ...(typeof body.agencyName === 'string' && body.agencyName.trim() ? { agencyName: body.agencyName.trim() } : {}),
+      ...(typeof body.agencyCode === 'string' && body.agencyCode.trim() ? { agencyCode: body.agencyCode.trim() } : {}),
+      ...(body.package != null ? { package: packageOf(body.package) } : {}),
+      ...(body.declaredValueClp != null ? { declaredValueClp: optionalNonNegativeNumber(body, 'declaredValueClp')! } : {}),
+    });
   });
 
   app.post('/v1/tenants/:tenantId/sellers', async (request, reply) => {
@@ -443,6 +494,7 @@ export function buildServer(options: BuildServerOptions): FastifyInstance {
       ...(body.declaredValueClp != null ? { declaredValueClp: optionalNonNegativeNumber(body, 'declaredValueClp')! } : {}),
       ...(body.recipient != null ? { recipient: recipientOf(body.recipient) } : {}),
       ...(typeof body.allowLiveQuotes === 'boolean' ? { allowLiveQuotes: body.allowLiveQuotes } : {}),
+      ...(typeof body.routeWithCatalog === 'boolean' ? { routeWithCatalog: body.routeWithCatalog } : {}),
     }, 'automatic', request.id);
     return reply.status(201).send(result);
   });

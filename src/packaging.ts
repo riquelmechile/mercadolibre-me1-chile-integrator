@@ -13,6 +13,7 @@ import {
 } from './domain.js';
 import type { Store } from './ports.js';
 import { LogisticsService } from './services.js';
+import { CarrierRoutingResolver } from './starken-catalog.js';
 
 function norm(value: string | undefined | null): string {
   return (value ?? '').trim().toLocaleLowerCase('es-CL');
@@ -136,6 +137,7 @@ export class AutomaticShippingService {
     private readonly store: Store,
     private readonly logistics: LogisticsService,
     private readonly packaging: PackagingResolver,
+    private readonly routing?: CarrierRoutingResolver,
   ) {}
 
   async create(request: AutomaticShipmentRequest, actor = 'automatic', correlationId?: string): Promise<AutomaticShipmentResult> {
@@ -151,13 +153,37 @@ export class AutomaticShippingService {
 
     const quotes: QuoteResult[] = [];
     const failures: Array<{ provider: CarrierProvider; reason: string }> = [];
+    const routed = new Map<CarrierProvider, { origin: typeof request.origin; destination: typeof request.destination; catalogVersion?: string }>();
     for (const provider of providers) {
       try {
+        let origin = request.origin;
+        let destination = request.destination;
+        let catalogVersion: string | undefined;
+        if (request.routeWithCatalog === true) {
+          if (!this.routing) throw new NotFoundError('Carrier routing resolver is not available');
+          if (!this.store.getActiveCarrierLocationCatalog(request.tenantId, provider)) {
+            throw new NotFoundError('No active carrier location catalog', { tenantId: request.tenantId, provider });
+          }
+          const originResolution = this.routing.resolve({ tenantId: request.tenantId, provider, address: request.origin });
+          const requestedDeliveryMode = request.deliveryPreference === 'home' || request.deliveryPreference === 'agency' ? request.deliveryPreference : undefined;
+          const destinationResolution = this.routing.resolve({
+            tenantId: request.tenantId,
+            provider,
+            address: request.destination,
+            ...(requestedDeliveryMode ? { deliveryMode: requestedDeliveryMode } : {}),
+            package: packaging.package,
+            ...(request.declaredValueClp != null ? { declaredValueClp: request.declaredValueClp } : {}),
+          });
+          origin = originResolution.address;
+          destination = destinationResolution.address;
+          catalogVersion = destinationResolution.catalogVersion;
+        }
+        routed.set(provider, { origin, destination, ...(catalogVersion ? { catalogVersion } : {}) });
         quotes.push(await this.logistics.quote({
           tenantId: request.tenantId,
           provider,
-          origin: request.origin,
-          destination: request.destination,
+          origin,
+          destination,
           package: packaging.package,
           allowLive: request.allowLiveQuotes === true,
           ...(request.deliveryPreference ? { deliveryPreference: request.deliveryPreference } : {}),
@@ -178,6 +204,22 @@ export class AutomaticShippingService {
       : undefined;
     const selectedDeliveryMode = quote.deliveryMode ?? requestedDeliveryMode;
     const selectedPaymentMode = quote.paymentMode ?? request.paymentMode;
+    let selectedRoute = routed.get(quote.provider) ?? { origin: request.origin, destination: request.destination };
+    if (request.routeWithCatalog === true && selectedDeliveryMode) {
+      if (!this.routing) throw new NotFoundError('Carrier routing resolver is not available');
+      if (!this.store.getActiveCarrierLocationCatalog(request.tenantId, quote.provider)) {
+        throw new NotFoundError('No active carrier location catalog', { tenantId: request.tenantId, provider: quote.provider });
+      }
+      const resolvedDestination = this.routing.resolve({
+        tenantId: request.tenantId,
+        provider: quote.provider,
+        address: selectedRoute.destination,
+        deliveryMode: selectedDeliveryMode,
+        package: packaging.package,
+        ...(request.declaredValueClp != null ? { declaredValueClp: request.declaredValueClp } : {}),
+      });
+      selectedRoute = { ...selectedRoute, destination: resolvedDestination.address, catalogVersion: resolvedDestination.catalogVersion };
+    }
 
     const automaticMetadata = {
       automaticShipping: {
@@ -189,6 +231,7 @@ export class AutomaticShippingService {
         ...(request.deliveryPreference ? { deliveryPreference: request.deliveryPreference } : {}),
         ...(request.paymentMode ? { paymentMode: request.paymentMode } : {}),
         ...(request.declaredValueClp != null ? { declaredValueClp: request.declaredValueClp } : {}),
+        ...(selectedRoute.catalogVersion ? { routingCatalogVersion: selectedRoute.catalogVersion } : {}),
       },
     };
     const shipment = await this.logistics.createShipment({
@@ -196,8 +239,8 @@ export class AutomaticShippingService {
       provider: quote.provider,
       externalOrderId: request.externalOrderId,
       ...(request.marketplaceShipmentId ? { marketplaceShipmentId: request.marketplaceShipmentId } : {}),
-      origin: request.origin,
-      destination: request.destination,
+      origin: selectedRoute.origin,
+      destination: selectedRoute.destination,
       package: packaging.package,
       serviceCode: quote.serviceCode,
       ...(selectedDeliveryMode ? { deliveryMode: selectedDeliveryMode } : {}),
