@@ -2,81 +2,125 @@
 
 **Research cut:** 25 August 2026 (Chile)
 
-This ledger records what the public product is allowed to treat as evidence about Starken. It exists to prevent a historical snippet, third-party plugin, leaked credential or stale endpoint from silently becoming a production contract.
+This ledger records which facts the public product may treat as current Starken interoperability evidence. Its purpose is to prevent stale snippets, leaked credentials, tenant data or unverified provider semantics from silently becoming production behavior.
 
 ## Provenance tiers
 
-- `CURRENT_OFFICIAL` — current page on a Starken-owned domain.
-- `CURRENT_OFFICIAL_VENDOR_LISTING` — current marketplace/app listing published by Starken itself on a third-party platform.
-- `THIRD_PARTY_CURRENT` — current independent implementation that can corroborate product behavior but cannot define the Starken contract.
-- `HISTORICAL_UNVERIFIED` — old/community/document-mirror material useful only for vocabulary or hypotheses. Never a source for production endpoints, credentials, auth headers or status mappings.
+- `CURRENT_OFFICIAL_PUBLIC` — current material on a Starken-owned domain or an official artifact downloadable from Starken's own portal without reproducing its source code here.
+- `CURRENT_OFFICIAL_LIVE_READONLY` — non-destructive response validated against Starken with an authorized tenant credential; tenant-specific values are not committed.
+- `CURRENT_OFFICIAL_VENDOR_LISTING` — marketplace/app listing published by Starken itself.
+- `HISTORICAL_UNVERIFIED` — old/community/mirrored material useful only as a hypothesis. Never sufficient for production auth, endpoints or status mappings.
 
-## Current official evidence
+## Official public sources
 
-| Source | Tier | Publicly confirmed facts | Product consequence |
+| Source | Tier | Confirmed facts | Product consequence |
 |---|---|---|---|
-| `https://www.starken.cl/integraciones` | `CURRENT_OFFICIAL` | E-commerce integration by REST and/or SOAP; OF generation, printing/labeling/dispatch, tracking, quote from weight/dimensions/address, home vs branch delivery choices, POD | Keep provider-neutral quote/create/tracking/POD/label concepts in the core; exact Host-to-Host contract remains gated |
-| `https://developers.starken.cl/vendeConNosotros` | `CURRENT_OFFICIAL` | Web Service **EMISION Host 2 Host (REST Service)** for Freight Order creation; printing/reprinting flows including Zebra/PDF | `create_shipment` is a justified normalized capability; label/reprint remain gated until their authorized contract is modeled |
-| `https://developers.starken.cl/cotizaTusEnvios` | `CURRENT_OFFICIAL` | Online quote API; origin, destination, parcel weight and dimensions are quote inputs | Current `QuoteInput` / `PackageSpec` model is justified |
-| `https://developers.starken.cl/seguimiento` | `CURRENT_OFFICIAL` | Real-time milestone tracking | Current normalized tracking boundary is justified; provider status codes still require an authorized map |
-| `https://developers.starken.cl/plugins` | `CURRENT_OFFICIAL` | Real-time pricing, online OF, label generation, tracking, **home delivery / agency delivery**, StarkenPro token request, account-dependent payment behavior, pickup workflow | Generic delivery mode, payment intent and opaque agency/location identifier are justified; plugin token is not assumed equivalent to enterprise Host-to-Host credentials |
-| `https://starkenpro.cl/Integraciondeplugin` | `CURRENT_OFFICIAL` | StarkenPro plugin onboarding/token workflow | Plugin onboarding is documented separately from Host-to-Host runtime activation |
-| `https://www.starken.cl/cotizador` | `CURRENT_OFFICIAL` | Public quote flow requests origin, destination, dimensions, weight and **declared value** | `declaredValueClp` is a generic quote/shipment field, not a Starken-specific extension |
+| `https://www.starken.cl/integraciones` | `CURRENT_OFFICIAL_PUBLIC` | REST/SOAP integrations, quote, OF, labels/dispatch, tracking, home/branch concepts, POD | Normalized quote/create/tracking domain is justified |
+| `https://developers.starken.cl/vendeConNosotros` | `CURRENT_OFFICIAL_PUBLIC` | Host-to-Host REST emission and OF printing/reprinting | OF creation is a supported carrier capability |
+| `https://developers.starken.cl/cotizaTusEnvios` | `CURRENT_OFFICIAL_PUBLIC` | Quote uses origin, destination, weight and dimensions | `PackageSpec` + routing codes are justified |
+| `https://developers.starken.cl/seguimiento` | `CURRENT_OFFICIAL_PUBLIC` | Shipment milestone tracking | Tracking boundary is justified; semantics still require explicit status map |
+| `https://starkenpro.cl/Integraciondeplugin` | `CURRENT_OFFICIAL_PUBLIC` | Official plugin workflow, token onboarding, quote, OF, labels, tracking, home/agency and account-dependent payment | Plugin gateway protocol is an official interoperability source |
+| official WooCommerce plugin v4.8.7 | `CURRENT_OFFICIAL_PUBLIC` | Gateway/auth/route/request/response facts used by the current plugin | `starken-plugin-gateway-v1` may be implemented independently; plugin source is not vendored or redistributed |
 
-## Current official vendor listing
+Artifact observed for the current WooCommerce plugin research cut:
 
-| Source | Tier | Publicly confirmed facts | Product consequence |
-|---|---|---|---|
-| `https://apps.shopify.com/starken-envios-a-todo-chile` | `CURRENT_OFFICIAL_VENDOR_LISTING` | App published by Starken; real-time tariffs, dispatch modes, OF, labels, tracking, agency configuration, commune discounts and **multi-package** support | Multi-package is a confirmed Starken product capability, but it remains runtime-gated until the authorized Host-to-Host package/label/tracking/idempotency semantics are known |
+```text
+SHA-256 cd1299a7797c7a88503943bf0c6c894ba7ef472df8e44a6dd83d492f3659467b
+Version 4.8.7
+```
 
-## Third-party current corroboration
+The StarkenPro download endpoints labelled Prestashop and Magento returned byte-identical archives during the cut. That portal inconsistency is recorded only as a research warning; the public runtime does not infer Magento behavior from that artifact.
 
-Current independent e-commerce plugins may demonstrate that merchants use home/agency choices, service choices and Starken quoting in production. They are useful for compatibility research only.
+## Live read-only validation
 
-Rules:
+Using an authorized tenant token held only in memory/secret context, the following operations were exercised without emitting an OF:
 
-1. never copy a third-party proxy/API key into the core;
-2. never infer Starken production endpoints from another vendor's backend;
-3. never treat proprietary field names as canonical Starken fields;
-4. use them only to identify scenarios our normalized domain should be able to represent.
+- region catalog;
+- city catalog;
+- commune catalog;
+- agency catalog;
+- delivery-type catalog;
+- service-type catalog;
+- one synthetic quote using fictional package data.
 
-## Historical / unverified clues
+These calls confirmed:
 
-Older public community snippets and mirrored documents have shown concepts such as city/location identifiers, delivery modality, payment type, package type and service type. Some historical material also exposed concrete endpoint/auth values.
+- Bearer authentication against the current plugin gateway;
+- quote success with HTTP `201`;
+- `alternativas[]` response shape;
+- delivery alternatives carrying service, delivery mode, payment code and price;
+- agency catalog records carrying dimensions/weight/value constraints and operational flags.
 
-Those concrete values are **intentionally omitted from this repository**.
+No token, account identifier, account-specific quote amount, RUT or buyer data from the validation is committed here.
 
-Historical evidence may only be used when it aligns with current official behavior to justify generic concepts. It must never be used to populate:
+## Current protocol facts allowed in runtime
 
-- `baseUrl`;
-- endpoint paths;
-- API keys/tokens;
-- authentication headers;
-- production account identifiers;
-- provider status maps;
-- service or payment numeric codes.
+The current official plugin protocol establishes these interoperability facts with sufficient confidence:
 
-## Evidence-to-runtime matrix
+```text
+Base: https://gateway.starken.cl/externo/integracion
+Auth: Authorization: Bearer <secret>
+```
 
-| Concept | Evidence state | Runtime state v0.5.0 |
+Verified route families:
+
+```text
+/agency/region
+/agency/city
+/agency/comuna
+/agency/agency
+/quote/cotizador-multiple
+/emision/tipo-entrega/
+/emision/tipo-servicio/
+/emision/emision
+/emision/consulta/{issuanceId}
+/tracking/orden-flete/of/{freightOrder}
+```
+
+Known normalized mappings currently allowed:
+
+- `DOMICILIO` -> `home`;
+- `AGENCIA` / `SUCURSAL` -> `agency`;
+- payment code `2` -> `sender_prepaid`;
+- payment code `3` -> `recipient_pay`;
+- delivery DLS `2` -> home;
+- delivery DLS `1` -> agency;
+- current verified `NORMAL` service DLS -> `0`.
+
+Any other service/payment/delivery code fails closed unless later verified evidence explicitly adds it.
+
+## Evidence-to-runtime matrix — v0.6.0
+
+| Concept | Evidence state | Runtime state |
 |---|---|---|
-| weight/dimensions/origin/destination quote | current official | implemented |
-| home vs agency delivery | current official | implemented as generic `deliveryPreference` / `deliveryMode` |
-| selected agency/location identifier | current official behavior | implemented as opaque `providerLocationId` |
-| sender-prepaid vs recipient-pay intent | current official account/payment behavior | implemented generically as `paymentMode` |
-| declared merchandise value | current official quote UI | implemented as `declaredValueClp` |
-| OF creation | current official Host-to-Host REST capability | normalized `create_shipment` implemented; exact provider mapping gated |
-| tracking | current official | normalized tracking implemented; exact status map gated |
-| label generation / reprint / Zebra / PDF | current official | confirmed, runtime method still gated |
-| pickup | current official | confirmed, runtime method still gated |
-| POD | current official | confirmed, runtime method still gated |
-| multi-package | current official vendor listing | confirmed, automatic runtime remains fail-closed |
-| exact Host-to-Host base URL / endpoint paths | not publicly established to required confidence | **not committed** |
-| exact Host-to-Host authentication scheme | not publicly established to required confidence | **not committed** |
-| exact production request/response field names and numeric codes | not publicly established to required confidence | **not committed** |
+| quote by origin/destination/weight/dimensions | official public + live readonly | implemented |
+| current plugin gateway + Bearer auth | official artifact + live readonly | implemented in official protocol mode |
+| home/agency selection | official artifact + live readonly | implemented |
+| recipient-pay / sender-prepaid normalization | official artifact + live readonly | implemented |
+| provider city/commune/agency routing codes | official artifact + live catalogs | generic address fields implemented |
+| declared value | official public/artifact | implemented |
+| OF emission payload | official artifact | implemented and fixture-tested; no discovery-time live OF emitted |
+| asynchronous issuance ID -> OF reconciliation | official artifact | implemented for tracking reconciliation |
+| label URL from emission/consultation | official artifact | normalized on create when present |
+| tracking history shape | official artifact | implemented; provider statuses require explicit tenant map |
+| `allowLiveQuotes` | product policy | opt-in only; false by default; Dynamic Freight remains snapshot-first |
+| agency physical constraints | live readonly catalog | evidence recorded; automatic enforcement not yet implemented |
+| complete tracking status map | insufficient verified semantics | **gated** |
+| multi-package | official vendor listing | **gated** |
+| pickup/POD/returns/cancel | official product capability | **gated** |
+| Zebra/batch reprint | official product capability | **gated** |
+
+## Secret and proprietary-material law
+
+1. Never commit a Starken token, password, account credential or tenant identifier to the public repository.
+2. Never copy or vendor the official plugin source into this repository.
+3. Protocol facts required for interoperability may be represented in independently written adapter code and tests.
+4. Discovery artifacts (ZIP/PDF/local probes) are temporary research inputs and must stay outside the Git tree and be deleted after evidence extraction.
+5. Tracking semantics must not be inferred from dashboard labels alone; unknown raw states fail closed.
+6. Tenant commercial tariffs and account-specific quote results are private pilot evidence, not public fixtures.
 
 ## Activation rule
 
-A tenant may activate live Starken Host-to-Host operations only after an authorized current contract supplies the missing transport details and contract tests prove the mapping against Starken's authorized environment. Until then the adapter remains fail-closed.
+A real tenant connection uses `credentialRef`; the token is resolved only at runtime. Before live OF emission the tenant must additionally have verified routing data, recipient fields, selected delivery/payment mode, service mapping and declared value. Tracking remains disabled until an explicit verified `trackingStatusMap` is installed.
 
-The public core must remain deployable without any tenant-specific Starken URL, account number, RUT, plugin token, API key or buyer data.
+The public product remains usable without any tenant-specific data.

@@ -11,7 +11,7 @@ Remove uncertainty around current provider contracts before runtime code depends
 
 ### Work
 - confirm Mercado Libre seller OAuth/application model after the 30-Aug-2026 separation rule;
-- request current Starken server-to-server API specification/credentials and load them into the implemented contract-driven adapter;
+- complete Starken pilot hardening: catalog synchronization, verified tracking-status map, agency constraints and controlled live OF validation;
 - request Blue Express API specification/credentials;
 - request Chilexpress productive API credentials/spec;
 - establish CorreosChile business/client credentials and REST v2 contract;

@@ -14,7 +14,7 @@ This document separates what is publicly documented from what is confirmed but c
 
 | Provider | Type | Status | Quote | Create shipment / transport order | Label | Tracking | Coverage | Pickup | Returns/POD | Auth visibility |
 |---|---|---|---:|---:|---:|---:|---:|---:|---:|---|
-| Starken | Direct carrier | `CONFIRMED_GATED_API` | Yes | OF issuance | Yes in plugin flow | Yes | Implied by quote/service | StarkenPro supports pickup | Reverse logistics + POD | API/REST/SOAP confirmed; server auth contract gated |
+| Starken | Direct carrier | `CONFIRMED_IMPLEMENTED_PLUGIN_GATEWAY` | Yes | OF issuance | Yes in plugin flow | Yes | Implied by quote/service | StarkenPro supports pickup | Reverse logistics + POD | Official plugin gateway implemented for quote/create/tracking; enterprise variants may differ |
 | Blue Express | Direct carrier | `CONFIRMED_GATED_API` | Yes | Yes in integrated ecommerce flow | Yes | Yes | Yes via service availability | Yes for business plans | Returns via ecosystem/Reversso | Credentials via customer/KAM; detailed API gated |
 | Chilexpress | Direct carrier | `CONFIRMED_GATED_API` | Yes | OT generation | Yes | Push + pull | Yes | Available in enterprise flows | Returns supported | Productive API credentials requested explicitly |
 | CorreosChile | Direct carrier | `CONFIRMED_PUBLIC_API` | Yes | Admission | Yes | Yes | Regions/communes/branches/services | Yes | Some legacy + current flows | Public developer docs; productive creds require client code |
@@ -24,7 +24,7 @@ This document separates what is publicly documented from what is confirmed but c
 
 ## Starken adapter
 
-**Runtime status (v0.5.0):** the generic contract-driven REST transport is implemented for quote, shipment creation and tracking. Production activation remains gated until an authorized Starken Host-to-Host contract is loaded in private tenant configuration. See `STARKEN-CONTRACT.md` and `STARKEN-EVIDENCE.md`.
+**Runtime status (v0.6.0):** the current official Starken plugin gateway is implemented for quote, shipment creation and tracking, with a generic contract-driven fallback retained for distinct enterprise contracts. Tokens remain secret references; tracking state semantics stay fail-closed until explicitly mapped. See `STARKEN-CONTRACT.md` and `STARKEN-EVIDENCE.md`.
 
 
 ### Officially confirmed

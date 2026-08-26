@@ -1,0 +1,52 @@
+{
+  "provider": "starken",
+  "credentialRef": "starken/example-tenant",
+  "config": {
+    "protocol": "starken-plugin-gateway-v1",
+    "capabilities": ["quote", "create_shipment"],
+    "originAgencyCode": "1001",
+    "trackingStatusMap": {}
+  },
+  "exampleQuoteInput": {
+    "origin": {
+      "region": "Example Region",
+      "commune": "Example Origin",
+      "providerCityCode": "101"
+    },
+    "destination": {
+      "region": "Example Region",
+      "commune": "Example Destination",
+      "providerCityCode": "202"
+    },
+    "package": {
+      "weightKg": 1,
+      "lengthCm": 30,
+      "widthCm": 20,
+      "heightCm": 10
+    },
+    "deliveryPreference": "any",
+    "allowLive": true
+  },
+  "exampleShipmentInput": {
+    "destination": {
+      "region": "Example Region",
+      "commune": "Example Destination",
+      "providerCommuneCode": "2202",
+      "providerAgencyCode": "3003",
+      "street": "Example Street",
+      "number": "123",
+      "unit": "4B"
+    },
+    "recipient": {
+      "taxId": "11111111-1",
+      "firstName": "Example",
+      "lastName": "Customer",
+      "phone": "+56900000000",
+      "email": "customer@example.invalid"
+    },
+    "serviceCode": "NORMAL",
+    "deliveryMode": "agency",
+    "paymentMode": "recipient_pay",
+    "declaredValueClp": 10000
+  }
+}

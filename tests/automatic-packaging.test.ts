@@ -16,8 +16,14 @@ class TestStarkenAdapter implements CourierAdapter {
   readonly provider = 'starken' as const;
   private readonly caps = new Set<CarrierCapability>(['quote', 'create_shipment']);
   lastCreateInput: ShipmentCreateInput | null = null;
+  lastQuoteInput: QuoteInput | null = null;
+  quoteResult: QuoteResult | null = null;
   capabilities(_connection: CarrierConnection): ReadonlySet<CarrierCapability> { return this.caps; }
-  async quote(_input: QuoteInput): Promise<QuoteResult> { throw new Error('snapshot should be used'); }
+  async quote(input: QuoteInput): Promise<QuoteResult> {
+    this.lastQuoteInput = input;
+    if (!this.quoteResult) throw new Error('snapshot should be used');
+    return this.quoteResult;
+  }
   async createShipment(input: ShipmentCreateInput): Promise<ProviderShipmentResult> {
     this.lastCreateInput = input;
     return { providerShipmentRef: `starken-test-${input.externalOrderId}`, trackingNumber: 'STKTEST1', status: 'label_ready', metadata: { testAdapter: true } };
@@ -189,5 +195,35 @@ test('automatic shipment preserves generic agency, payment and declared-value in
   assert.equal(starkenAdapter.lastCreateInput?.paymentMode, 'sender_prepaid');
   assert.equal(starkenAdapter.lastCreateInput?.declaredValueClp, 45000);
   assert.equal(starkenAdapter.lastCreateInput?.destination.providerLocationId, 'AGENCY-OPAQUE-123');
+  store.close();
+});
+
+
+test('automatic live quote opt-in preserves provider-selected delivery and payment for shipment creation', async () => {
+  const { store, automatic, tenant, starkenAdapter } = setup();
+  store.createCarrierConnection({ id: newId(), tenantId: tenant.id, provider: 'starken', credentialRef: 'starken/ref', enabled: true, config: {}, createdAt: nowIso() });
+  profile(store, tenant.id, { name: 'Live quote product', matchType: 'sku', matchValue: 'LIVE-1', package: { weightKg: 1, lengthCm: 30, widthCm: 20, heightCm: 10 } });
+  starkenAdapter.quoteResult = {
+    provider: 'starken', serviceCode: 'NORMAL', serviceName: 'NORMAL', currency: 'CLP', amount: 5100,
+    estimatedBusinessDays: null, chargeableWeightKg: 1, snapshotVersion: null, source: 'live',
+    deliveryMode: 'agency', paymentMode: 'recipient_pay',
+  };
+
+  await automatic.create({
+    tenantId: tenant.id,
+    sellerId: 'seller-1',
+    externalOrderId: 'ORDER-LIVE',
+    origin,
+    destination,
+    items: [{ sku: 'LIVE-1', quantity: 1 }],
+    preferredProvider: 'starken',
+    deliveryPreference: 'any',
+    allowLiveQuotes: true,
+    idempotencyKey: 'ORDER-LIVE',
+  });
+
+  assert.equal(starkenAdapter.lastQuoteInput?.allowLive, true);
+  assert.equal(starkenAdapter.lastCreateInput?.deliveryMode, 'agency');
+  assert.equal(starkenAdapter.lastCreateInput?.paymentMode, 'recipient_pay');
   store.close();
 });

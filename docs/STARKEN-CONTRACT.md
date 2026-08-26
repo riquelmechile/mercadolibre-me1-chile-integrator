@@ -1,179 +1,185 @@
-# Starken contract-driven adapter
+# Starken adapter — official plugin gateway + contract-driven fallback
 
-**Status:** transport and normalization implemented; production Host-to-Host contract not bundled.
+**Status:** official current plugin protocol implemented for quote, OF creation and tracking; exact tracking status semantics remain tenant-gated until explicitly mapped.
 
-The public core contains a generic REST adapter for Starken. It does **not** publish, infer or hardcode private Starken endpoints, credentials, account identifiers or commercial payload schemas.
+The public core contains two Starken execution modes:
 
-## Verified public scope — August 2026
+1. `starken-plugin-gateway-v1` — an implementation of the current protocol evidenced by Starken's official downloadable plugins and validated with non-destructive live calls against an authorized account.
+2. Contract-driven fallback — the generic REST mapping engine retained for a future enterprise/Host-to-Host contract that differs from the current plugin gateway.
 
-Official Starken sources confirm that e-commerce/system integrations can use REST and/or SOAP and cover, depending on the customer flow:
+No tenant token, account identifier, buyer data, tenant SKU or commercial tariff is committed to this repository.
 
-- shipment quotation from origin, destination, weight and dimensions;
-- Freight Order (OF) issuance;
-- label generation/printing;
-- shipment tracking;
-- proof of delivery (POD);
-- pickup/reverse-logistics workflows;
-- Host-to-Host REST emission for OF creation;
-- single and batch OF reprinting with Zebra/PDF output;
-- multi-package handling, agency configuration and commune-level discounts in the official Shopify integration.
+## Current evidence cut — 25 August 2026
 
-Official references:
+The current official WooCommerce plugin exposed by StarkenPro identifies itself as **v4.8.7**. The artifact inspected during this research cut had SHA-256:
 
-- https://www.starken.cl/integraciones
-- https://www.starken.cl/empresas
-- https://developers.starken.cl/vendeConNosotros
-- https://developers.starken.cl/cotizaTusEnvios
-- https://developers.starken.cl/seguimiento
-- https://developers.starken.cl/plugins
-- https://apps.shopify.com/starken-envios-a-todo-chile
+`cd1299a7797c7a88503943bf0c6c894ba7ef472df8e44a6dd83d492f3659467b`
 
-The public developer pages do **not** expose a complete production Host-to-Host REST contract with the exact account authentication scheme, endpoint set and request/response payloads. Those details therefore remain private configuration supplied only after authorized onboarding with Starken.
+The official download is linked by StarkenPro itself. The plugin artifact is **not vendored, copied or redistributed** by this project; only protocol facts necessary for interoperability are implemented independently.
 
-## Boundary
+The current gateway used by that official integration is:
 
-The v0.5.0 adapter currently implements these normalized capabilities:
+```text
+https://gateway.starken.cl/externo/integracion
+```
 
-- `quote`
-- `create_shipment`
-- `tracking`
+Authentication is Bearer token based. The token is resolved from `credentialRef` through `SecretProvider`; the value never belongs in source control or SQLite configuration.
 
-Other Starken capabilities documented publicly (labels/reprint, pickup, POD, reverse logistics, multi-package shipments, agency selection and commercial discount rules) remain roadmap capabilities until the corresponding authorized contract is represented in the public normalized interface.
+The current verified operation set is:
 
-The public Host-to-Host page confirms OF creation and printing/reprinting workflows, but it does not publish the exact REST paths, auth scheme or payload schemas. The Shopify app additionally confirms multi-package operation, configurable agencies and commune-level discounts; those features must not be inferred as identical Host-to-Host fields without the authorized contract.
+```text
+GET  /agency/region
+GET  /agency/city
+GET  /agency/comuna
+GET  /agency/comuna/{id}
+GET  /agency/agency
 
-A connection can only advertise capabilities that the adapter actually implements. Configuration cannot make the adapter claim an unsupported runtime capability.
+GET  /emision/tipo-entrega/
+GET  /emision/tipo-servicio/
 
-## Activation contract
+POST /quote/cotizador-multiple
+POST /emision/emision
+GET  /emision/consulta/{issuanceId}
+GET  /tracking/orden-flete/of/{freightOrder}
+```
 
-A Starken carrier connection needs:
+A live, non-destructive validation with an authorized StarkenPro token confirmed successful catalog reads and quotation. No live OF was emitted as part of protocol discovery.
+
+## Activation
+
+Use the official protocol explicitly:
 
 ```json
 {
   "provider": "starken",
   "credentialRef": "starken/example-tenant",
   "config": {
+    "protocol": "starken-plugin-gateway-v1",
     "capabilities": ["quote", "create_shipment", "tracking"],
-    "contract": {
-      "version": "authorized-contract-version",
-      "baseUrl": "https://api-authorized.example.invalid",
-      "allowedHosts": ["api-authorized.example.invalid"],
-      "auth": { "mode": "bearer" },
-      "timeoutMs": 10000,
-      "statusMap": {},
-      "operations": {}
-    }
+    "originAgencyCode": "REPLACE_WITH_TENANT_DLS_CODE",
+    "trackingStatusMap": {}
   }
 }
 ```
 
-The example intentionally uses `.invalid`. Replace the contract only inside authorized tenant/deployment configuration.
+`trackingStatusMap` deliberately starts empty. Provider tracking states are never guessed. A tenant must install an explicitly verified map before tracking is activated.
 
-`credentialRef` is resolved at runtime by `SecretProvider`. The secret value never belongs in the carrier connection, SQLite row, public repository or tenant fixture.
+The optional `serviceCodeMap` can add DLS mappings discovered through an authorized current contract. The only built-in service mapping currently treated as verified is `NORMAL -> 0`; unknown service codes fail closed.
 
-## Authentication modes
+## Generic routing data
 
-The transport supports three generic modes so the core does not need to change when the authorized Starken contract specifies its actual mechanism:
+The Starken protocol requires more than a commune label, so the generic address model can carry provider routing codes without making them canonical business data:
 
-- `bearer` → `Authorization: Bearer <resolved-secret>`
-- `basic` → the resolved secret is encoded as HTTP Basic credentials
-- `header` → the resolved secret is sent in one explicitly configured header, optionally with a non-secret prefix
+- `providerCityCode` — provider city/routing code used for quote origin/destination;
+- `providerCommuneCode` — provider commune code used for OF recipient routing;
+- `providerAgencyCode` — provider agency code used when the selected delivery mode is `agency`;
+- `street`, `number`, `unit` — normalized address fields used by shipment execution.
 
-Static operation headers cannot contain authentication credentials. Raw `Authorization`, API-key or cookie values in operation configuration are rejected.
+These fields are generic logistics fields. Other couriers may populate them with their own codes.
 
-## Network safety
+## Quote
 
-Before resolving a secret or issuing network I/O the adapter validates:
-
-1. the requested capability is implemented and enabled;
-2. the contract and operation mapping are complete;
-3. `baseUrl` is valid;
-4. production URLs use HTTPS;
-5. the base host appears in `allowedHosts`;
-6. operation paths cannot escape the configured origin;
-7. timeouts are between 100 ms and 30 seconds.
-
-Plain HTTP is accepted only for loopback test hosts (`127.0.0.1`, `localhost`, `::1`, `*.localhost`). Redirects are rejected.
-
-## Request templates
-
-Operation bodies are JSON templates over the normalized logistics context. A placeholder must occupy the entire JSON string value:
+The verified quote request uses:
 
 ```json
 {
-  "weight": "{{package.weightKg}}",
-  "origin": "{{origin.commune}}",
-  "destination": "{{destination.commune}}"
+  "origen": 1,
+  "destino": 91,
+  "bulto": "BULTO",
+  "alto": 10,
+  "ancho": 10,
+  "largo": 10,
+  "kilos": 1,
+  "todas_alternativas": true
 }
 ```
 
-No JavaScript, expressions or `eval` are supported. Missing values fail before the request is sent.
+The numeric values above are fictional examples. No tenant tariff or destination from the pilot is embedded in the public product.
 
-Supported normalized context includes the fields already present in `QuoteInput`, `ShipmentCreateInput` and `Shipment` such as origin/destination, package dimensions, external order ID, service code, provider shipment reference and tracking number.
+The verified response contains `alternativas[]` with at least:
 
-If the authorized emission contract later requires normalized recipient/sender fields that the public domain does not yet model, add those as generic domain fields first; do not hide tenant-specific semantics inside a provider template.
+- `servicio`;
+- `entrega`;
+- `codigo_tipo_pago`;
+- `precio`;
+- `precio_sin_descuento`;
+- `descuento_tipo_cliente`.
 
-## Response mappings
+The adapter maps provider concepts into the normalized domain:
 
-The adapter extracts fields using safe dotted paths. Examples:
+- `DOMICILIO` -> `home`;
+- `AGENCIA` / `SUCURSAL` -> `agency`;
+- payment code `2` -> `sender_prepaid`;
+- payment code `3` -> `recipient_pay`.
 
-```json
-{
-  "itemsPath": "data.services",
-  "serviceCodePath": "code",
-  "serviceNamePath": "name",
-  "amountPath": "price",
-  "estimatedBusinessDaysPath": "days"
-}
+Starken's current quote payload does not provide a reliable business-day ETA in the inspected protocol, so a live `QuoteResult` may return `estimatedBusinessDays: null`. Snapshot tariffs still require an explicit numeric ETA.
+
+When the caller requests `home`, `agency`, or a payment mode, incompatible Starken alternatives are filtered before price selection. `any` can select the cheapest eligible alternative and the concrete selected delivery/payment values travel into shipment creation.
+
+## Snapshot-first law
+
+ME1 Dynamic Freight must not synchronously depend on Starken availability. The architecture remains:
+
+```text
+carrier tariff/coverage sync -> versioned tariff snapshot -> deterministic marketplace quote
 ```
 
-Mappings cannot use prototype paths or execute code.
+`allowLiveQuotes` on automatic shipping is **false by default**. It exists only as an explicit post-sale/pilot fallback. Enabling it does not change the snapshot-first requirement for Dynamic Freight certification.
 
-For tracking, every provider status must have an explicit entry in `statusMap`. Unknown states fail closed. The adapter never guesses `delivered`, `cancelled` or another canonical state.
+## OF creation
 
-## Failure semantics
+The normalized shipment domain now has an optional generic `recipient` object and explicit address/provider routing fields. The official Starken mode validates all required fields **before resolving the token or issuing network I/O**.
 
-The adapter never returns raw response bodies, secret values or auth headers in errors. Failures expose only sanitized categories such as:
+The current verified OF schema includes:
 
-- missing/invalid contract;
-- unsupported capability;
-- unsafe transport/host;
-- network or timeout;
-- HTTP status code;
-- malformed JSON/mapping;
-- unknown tracking status.
+- origin/destination agency codes where applicable;
+- recipient RUT/name/phone/email/contact;
+- street, number, unit and commune routing code;
+- declared value;
+- delivery/payment/service DLS codes;
+- `encargos[]` with parcel weight/dimensions and description;
+- optional checking account and cost center for sender-prepaid tenants.
 
-## Production activation checklist
+For home delivery the destination agency field is omitted. For agency delivery a destination agency code is mandatory.
 
-Before enabling a real Starken connection:
+The response may expose an asynchronous issuance identifier before the final Freight Order exists. The adapter therefore stores the Starken issuance ID as the provider shipment reference, preserves an OF when already returned, and can reconcile the issuance before tracking.
 
-1. obtain the current authorized Host-to-Host specification from Starken;
-2. confirm whether the account uses enterprise REST/SOAP or a plugin/token flow — do not assume they share credentials/scopes;
-3. record contract version and source internally;
-4. populate endpoint/auth/mapping configuration in the private tenant/deployment repository;
-5. store the credential only in the runtime secret store;
-6. map every tracking status explicitly;
-7. run contract tests against the authorized test environment;
-8. validate quotation parity using measured packed dimensions;
-9. run shipment creation in non-production/test mode if Starken provides one;
-10. approve the tenant contract through review before enabling live emission.
+A returned label URL promotes the canonical result to `label_ready`; otherwise the shipment remains `created` until later reconciliation.
 
-The public core should not be modified simply to insert an account-specific URL or payload field.
+## Tracking
 
+The current tracking endpoint is keyed by Freight Order and exposes a current status plus `history[]` entries containing provider status, note and timestamps.
 
-## Generic delivery fields available to mappings — v0.5.0
+Every provider status must be present in private/tenant `trackingStatusMap` before it can become a canonical status. Unknown statuses fail closed. Event IDs are deterministically derived from provider data so repeated polling deduplicates correctly.
 
-The normalized quote context can expose:
+## Catalog facts
 
-- `deliveryPreference` — `home`, `agency`, or `any`;
-- `paymentMode` — `sender_prepaid` or `recipient_pay`;
-- `declaredValueClp`;
-- `destination.providerLocationId` — opaque selected location/agency identifier.
+Read-only validation showed that agency catalog records expose operational constraints such as:
 
-The shipment-create context exposes concrete `deliveryMode` instead of `any`, plus `paymentMode`, `declaredValueClp`, and the same opaque destination location identifier. These are generic logistics fields, not Starken constants.
+- maximum length/width/height;
+- value limit;
+- weight restriction;
+- pickup/delivery flags;
+- geolocation and schedules.
 
-A quote response mapping may optionally provide `deliveryModePath`. Only `home` and `agency` are accepted; unknown values fail closed.
+The core does not yet enforce those agency-level constraints automatically; that belongs in the next generic carrier-location/catalog synchronization layer.
 
-Current public Starken evidence confirms home/agency delivery concepts, declared value in the public quote flow, account-dependent payment behavior and agency configuration. It does **not** publish the exact Host-to-Host field names/codes, so an authorized contract mapping is still required before production.
+## Capabilities still gated
 
-See `STARKEN-EVIDENCE.md` for provenance and evidence tiers.
+The following are confirmed Starken product capabilities but are not yet advertised as implemented runtime capabilities:
+
+- multi-package emission;
+- pickup scheduling;
+- POD retrieval;
+- cancellation/returns;
+- label reprint and Zebra-specific output;
+- automatic agency/catalog synchronization;
+- a complete verified tracking-status map.
+
+The adapter must not claim these capabilities until their runtime semantics and tests exist.
+
+## Contract-driven fallback
+
+If Starken supplies a distinct enterprise Host-to-Host contract, the original contract-driven engine remains available. It supports HTTPS/host allowlists, secret references, safe JSON templates, response mappings, timeouts and explicit status maps. A tenant can use that mode without changing the normalized product domain.
+
+See `STARKEN-EVIDENCE.md` for provenance and confidence rules.

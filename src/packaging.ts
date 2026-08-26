@@ -159,7 +159,7 @@ export class AutomaticShippingService {
           origin: request.origin,
           destination: request.destination,
           package: packaging.package,
-          allowLive: false,
+          allowLive: request.allowLiveQuotes === true,
           ...(request.deliveryPreference ? { deliveryPreference: request.deliveryPreference } : {}),
           ...(request.paymentMode ? { paymentMode: request.paymentMode } : {}),
           ...(request.declaredValueClp != null ? { declaredValueClp: request.declaredValueClp } : {}),
@@ -168,7 +168,7 @@ export class AutomaticShippingService {
         failures.push({ provider, reason: error instanceof Error ? error.message : String(error) });
       }
     }
-    quotes.sort((a, b) => a.amount - b.amount || a.estimatedBusinessDays - b.estimatedBusinessDays || a.provider.localeCompare(b.provider));
+    quotes.sort((a, b) => a.amount - b.amount || (a.estimatedBusinessDays ?? Number.MAX_SAFE_INTEGER) - (b.estimatedBusinessDays ?? Number.MAX_SAFE_INTEGER) || a.provider.localeCompare(b.provider));
     const quote = quotes[0];
     if (!quote) {
       throw new NotFoundError('No eligible carrier quote for resolved package', { failures, package: packaging.package });
@@ -177,6 +177,7 @@ export class AutomaticShippingService {
       ? request.deliveryPreference
       : undefined;
     const selectedDeliveryMode = quote.deliveryMode ?? requestedDeliveryMode;
+    const selectedPaymentMode = quote.paymentMode ?? request.paymentMode;
 
     const automaticMetadata = {
       automaticShipping: {
@@ -200,8 +201,9 @@ export class AutomaticShippingService {
       package: packaging.package,
       serviceCode: quote.serviceCode,
       ...(selectedDeliveryMode ? { deliveryMode: selectedDeliveryMode } : {}),
-      ...(request.paymentMode ? { paymentMode: request.paymentMode } : {}),
+      ...(selectedPaymentMode ? { paymentMode: selectedPaymentMode } : {}),
       ...(request.declaredValueClp != null ? { declaredValueClp: request.declaredValueClp } : {}),
+      ...(request.recipient ? { recipient: request.recipient } : {}),
       idempotencyKey: `automatic:${request.idempotencyKey}`,
       metadata: automaticMetadata,
     }, actor, correlationId);

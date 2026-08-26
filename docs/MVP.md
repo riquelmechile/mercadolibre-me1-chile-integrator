@@ -1,4 +1,4 @@
-# MVP runtime — v0.5.0
+# MVP runtime — v0.6.0
 
 **Implementation cut:** 25 August 2026.
 
@@ -18,14 +18,14 @@ This repository now includes an executable MVP for the logistics core described 
 - Append-only audit events.
 - Fastify HTTP API with correlation IDs and redacted secret headers.
 - Mock courier adapter for complete local/sandbox flows.
-- Contract-driven Starken REST adapter for `quote`, `create_shipment` and `tracking`, plus fail-closed shells for Blue Express and Chilexpress.
+- Current official Starken plugin-gateway adapter for `quote`, `create_shipment` and `tracking`, with contract-driven fallback plus fail-closed shells for Blue Express and Chilexpress.
 - Mercado Libre adapter boundary with a certification gate for ME1 publication.
 
 ## Safety boundary
 
 The MVP deliberately does **not** guess private carrier API contracts.
 
-Starken exposes a contract-driven REST transport but remains `integration_gated` until an authorized tenant contract is configured; Blue Express and Chilexpress remain shell-gated until their official contracts are implemented.
+Starken can run through `starken-plugin-gateway-v1` when a tenant provides only a `credentialRef` plus verified routing/status configuration; Blue Express and Chilexpress remain shell-gated until their official contracts are implemented.
 
 Secrets must not be placed in repository files or normal database rows. Connections store only a `credentialRef`. The default environment resolver maps for example:
 
@@ -174,9 +174,9 @@ Provider code must never infer endpoints from leaked plugins, stale repositories
 
 ## Next MVP increment
 
-The next Starken slice is authorized-contract activation and tenant pilot validation:
+The next Starken slice is controlled tenant pilot hardening:
 
-- official Starken server-to-server contract;
+- generic Starken catalog synchronization and routing-code resolution;
 - account/sandbox auth;
 - quote mapping;
 - OF/shipment creation;
@@ -188,7 +188,7 @@ The next Starken slice is authorized-contract activation and tenant pilot valida
 ME1 Dynamic Freight production remains a later certification milestone.
 
 
-## Generic delivery intent — v0.5.0
+## Generic delivery intent — v0.6.0
 
 Quote and automatic-shipment requests may now express logistics intent without provider-specific codes:
 
@@ -199,4 +199,4 @@ Quote and automatic-shipment requests may now express logistics intent without p
 
 Direct shipment creation uses concrete `deliveryMode` (`home` or `agency`) rather than `any`. These fields are optional and backward-compatible. Tariff snapshots may optionally tag rules with `deliveryMode` and `paymentMode`; exact matches outrank generic rules while legacy untagged rules remain valid fallbacks.
 
-The core never interprets `providerLocationId` as a Starken agency code. It is an opaque value whose provider-specific meaning belongs to the authorized adapter contract.
+The core keeps `providerLocationId` opaque for backward compatibility and now also exposes generic `providerCityCode`, `providerCommuneCode` and `providerAgencyCode` fields when a carrier requires distinct routing layers.

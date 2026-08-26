@@ -13,6 +13,7 @@ import {
 } from './domain.js';
 import type { CourierAdapter, MarketplaceAdapter, SecretProvider } from './ports.js';
 import { ContractDrivenStarkenAdapter } from './starken-contract.js';
+import { OfficialStarkenPluginAdapter, isOfficialStarkenProtocol } from './starken-official.js';
 
 export class MockCourierAdapter implements CourierAdapter {
   readonly provider = 'mock' as const;
@@ -83,7 +84,45 @@ abstract class ContractGatedCourierAdapter implements CourierAdapter {
   }
 }
 
-export class StarkenAdapter extends ContractDrivenStarkenAdapter {}
+export class StarkenAdapter implements CourierAdapter {
+  readonly provider = 'starken' as const;
+  private readonly contractDriven: ContractDrivenStarkenAdapter;
+  private readonly official: OfficialStarkenPluginAdapter;
+
+  constructor(secrets?: SecretProvider) {
+    const secretProvider = secrets ?? {
+      async resolve(reference: string): Promise<string> {
+        throw new IntegrationGatedError('Starken credential provider is not configured in this runtime', { credentialRef: reference });
+      },
+    };
+    this.contractDriven = new ContractDrivenStarkenAdapter(secretProvider);
+    this.official = new OfficialStarkenPluginAdapter(secretProvider);
+  }
+
+  capabilities(connection: CarrierConnection): ReadonlySet<CarrierCapability> {
+    return isOfficialStarkenProtocol(connection)
+      ? this.official.capabilities(connection)
+      : this.contractDriven.capabilities(connection);
+  }
+
+  quote(input: QuoteInput, connection: CarrierConnection): Promise<QuoteResult> {
+    return isOfficialStarkenProtocol(connection)
+      ? this.official.quote(input, connection)
+      : this.contractDriven.quote(input, connection);
+  }
+
+  createShipment(input: ShipmentCreateInput, connection: CarrierConnection): Promise<ProviderShipmentResult> {
+    return isOfficialStarkenProtocol(connection)
+      ? this.official.createShipment(input, connection)
+      : this.contractDriven.createShipment(input, connection);
+  }
+
+  tracking(shipment: import('./domain.js').Shipment, connection: CarrierConnection) {
+    return isOfficialStarkenProtocol(connection)
+      ? this.official.tracking(shipment, connection)
+      : this.contractDriven.tracking(shipment, connection);
+  }
+}
 
 export class BlueExpressAdapter extends ContractGatedCourierAdapter {
   readonly provider = 'blueexpress' as const;

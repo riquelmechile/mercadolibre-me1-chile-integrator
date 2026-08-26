@@ -159,6 +159,28 @@ function addressOf(value: unknown, field: string): QuoteInput['origin'] {
     commune: requiredString(body, 'commune'),
     ...(typeof body.postalCode === 'string' ? { postalCode: body.postalCode } : {}),
     ...(body.providerLocationId != null ? { providerLocationId: requiredString(body, 'providerLocationId') } : {}),
+    ...(body.providerCityCode != null ? { providerCityCode: requiredString(body, 'providerCityCode') } : {}),
+    ...(body.providerCommuneCode != null ? { providerCommuneCode: requiredString(body, 'providerCommuneCode') } : {}),
+    ...(body.providerAgencyCode != null ? { providerAgencyCode: requiredString(body, 'providerAgencyCode') } : {}),
+    ...(body.street != null ? { street: requiredString(body, 'street') } : {}),
+    ...(body.number != null ? { number: requiredString(body, 'number') } : {}),
+    ...(body.unit != null ? { unit: requiredString(body, 'unit') } : {}),
+  };
+}
+
+
+function recipientOf(value: unknown): import('./domain.js').ShipmentRecipient {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new AppError('invalid_request', 'recipient must be an object', 400);
+  }
+  const body = value as Record<string, unknown>;
+  return {
+    ...(body.taxId != null ? { taxId: requiredString(body, 'taxId') } : {}),
+    firstName: requiredString(body, 'firstName'),
+    lastName: requiredString(body, 'lastName'),
+    phone: requiredString(body, 'phone'),
+    email: requiredString(body, 'email'),
+    ...(body.contactName != null ? { contactName: requiredString(body, 'contactName') } : {}),
   };
 }
 
@@ -419,6 +441,8 @@ export function buildServer(options: BuildServerOptions): FastifyInstance {
       ...(optionalEnum(body, 'deliveryPreference', deliveryPreferences) ? { deliveryPreference: optionalEnum(body, 'deliveryPreference', deliveryPreferences)! } : {}),
       ...(optionalEnum(body, 'paymentMode', paymentModes) ? { paymentMode: optionalEnum(body, 'paymentMode', paymentModes)! } : {}),
       ...(body.declaredValueClp != null ? { declaredValueClp: optionalNonNegativeNumber(body, 'declaredValueClp')! } : {}),
+      ...(body.recipient != null ? { recipient: recipientOf(body.recipient) } : {}),
+      ...(typeof body.allowLiveQuotes === 'boolean' ? { allowLiveQuotes: body.allowLiveQuotes } : {}),
     }, 'automatic', request.id);
     return reply.status(201).send(result);
   });
@@ -438,6 +462,7 @@ export function buildServer(options: BuildServerOptions): FastifyInstance {
       ...(optionalEnum(body, 'deliveryMode', deliveryModes) ? { deliveryMode: optionalEnum(body, 'deliveryMode', deliveryModes)! } : {}),
       ...(optionalEnum(body, 'paymentMode', paymentModes) ? { paymentMode: optionalEnum(body, 'paymentMode', paymentModes)! } : {}),
       ...(body.declaredValueClp != null ? { declaredValueClp: optionalNonNegativeNumber(body, 'declaredValueClp')! } : {}),
+      ...(body.recipient != null ? { recipient: recipientOf(body.recipient) } : {}),
     };
     const shipment = await logistics.createShipment(input, 'api', request.id);
     return reply.status(201).send(shipment);

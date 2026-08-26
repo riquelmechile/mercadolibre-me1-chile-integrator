@@ -364,13 +364,17 @@ export class ContractDrivenStarkenAdapter implements CourierAdapter {
       const serviceNamePath = optionalMappedPath(mapping, 'serviceNamePath');
       const serviceName = serviceNamePath ? scalarString(getPath(item, serviceNamePath), 'serviceName') : serviceCode;
       const amount = finiteNumber(getPath(item, mappedPath(mapping, 'amountPath')), 'amount');
-      const estimatedBusinessDays = finiteNumber(getPath(item, mappedPath(mapping, 'estimatedBusinessDaysPath')), 'estimatedBusinessDays');
-      if (amount < 0 || estimatedBusinessDays < 0) throw gated('Starken quote contains negative values');
+      const estimatedBusinessDaysPath = optionalMappedPath(mapping, 'estimatedBusinessDaysPath');
+      const estimatedBusinessDays = estimatedBusinessDaysPath ? finiteNumber(getPath(item, estimatedBusinessDaysPath), 'estimatedBusinessDays') : null;
+      if (amount < 0 || (estimatedBusinessDays != null && estimatedBusinessDays < 0)) throw gated('Starken quote contains negative values');
       const chargeablePath = optionalMappedPath(mapping, 'chargeableWeightKgPath');
       const chargeableWeightKg = chargeablePath ? finiteNumber(getPath(item, chargeablePath), 'chargeableWeightKg') : input.package.weightKg;
       const deliveryModePath = optionalMappedPath(mapping, 'deliveryModePath');
       const deliveryMode = deliveryModePath ? scalarString(getPath(item, deliveryModePath), 'deliveryMode') : undefined;
       if (deliveryMode && deliveryMode !== 'home' && deliveryMode !== 'agency') throw gated('Starken quote returned an invalid delivery mode', { deliveryMode });
+      const paymentModePath = optionalMappedPath(mapping, 'paymentModePath');
+      const paymentMode = paymentModePath ? scalarString(getPath(item, paymentModePath), 'paymentMode') : undefined;
+      if (paymentMode && paymentMode !== 'sender_prepaid' && paymentMode !== 'recipient_pay') throw gated('Starken quote returned an invalid payment mode', { paymentMode });
       return {
         provider: 'starken',
         serviceCode,
@@ -382,9 +386,10 @@ export class ContractDrivenStarkenAdapter implements CourierAdapter {
         snapshotVersion: null,
         source: 'live',
         ...(deliveryMode ? { deliveryMode: deliveryMode as 'home' | 'agency' } : {}),
+        ...(paymentMode ? { paymentMode: paymentMode as 'sender_prepaid' | 'recipient_pay' } : {}),
       };
     });
-    quotes.sort((a, b) => a.amount - b.amount || a.estimatedBusinessDays - b.estimatedBusinessDays || a.serviceCode.localeCompare(b.serviceCode));
+    quotes.sort((a, b) => a.amount - b.amount || (a.estimatedBusinessDays ?? Number.MAX_SAFE_INTEGER) - (b.estimatedBusinessDays ?? Number.MAX_SAFE_INTEGER) || a.serviceCode.localeCompare(b.serviceCode));
     return quotes[0]!;
   }
 

@@ -69,6 +69,21 @@ export interface AddressPoint {
   commune: string;
   postalCode?: string;
   providerLocationId?: string;
+  providerCityCode?: string;
+  providerCommuneCode?: string;
+  providerAgencyCode?: string;
+  street?: string;
+  number?: string;
+  unit?: string;
+}
+
+export interface ShipmentRecipient {
+  taxId?: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  email: string;
+  contactName?: string;
 }
 
 export interface PackageSpec {
@@ -124,6 +139,8 @@ export interface AutomaticShipmentRequest {
   deliveryPreference?: DeliveryPreference;
   paymentMode?: PaymentMode;
   declaredValueClp?: number;
+  recipient?: ShipmentRecipient;
+  allowLiveQuotes?: boolean;
   idempotencyKey: string;
 }
 
@@ -186,11 +203,12 @@ export interface QuoteResult {
   serviceName: string;
   currency: 'CLP';
   amount: number;
-  estimatedBusinessDays: number;
+  estimatedBusinessDays: number | null;
   chargeableWeightKg: number;
   snapshotVersion: string | null;
   source: 'snapshot' | 'live' | 'contingency';
   deliveryMode?: DeliveryMode;
+  paymentMode?: PaymentMode;
 }
 
 export interface ShipmentCreateInput {
@@ -205,6 +223,7 @@ export interface ShipmentCreateInput {
   deliveryMode?: DeliveryMode;
   paymentMode?: PaymentMode;
   declaredValueClp?: number;
+  recipient?: ShipmentRecipient;
   idempotencyKey: string;
   metadata?: Record<string, unknown>;
 }
