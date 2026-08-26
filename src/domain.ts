@@ -313,6 +313,12 @@ export interface ProviderShipmentResult {
   metadata?: Record<string, unknown>;
 }
 
+export interface ProviderShipmentReconciliation {
+  trackingNumber?: string | null;
+  labelUrl?: string | null;
+  metadata?: Record<string, unknown>;
+}
+
 export interface Shipment {
   id: string;
   tenantId: string;

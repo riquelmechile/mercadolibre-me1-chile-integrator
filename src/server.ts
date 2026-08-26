@@ -1,7 +1,7 @@
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 import { AdapterRegistry } from './adapters.js';
 import { assertNoInlineSecrets, type AppConfig } from './config.js';
-import { ControlledShipmentGate, ControlledShipmentPreviewGate, controlledShipmentPayloadSha256 } from './controlled-shipment.js';
+import { ControlledShipmentGate, ControlledShipmentObservationGate, ControlledShipmentPreviewGate, controlledShipmentPayloadSha256 } from './controlled-shipment.js';
 import {
   AppError,
   ConflictError,
@@ -245,6 +245,11 @@ function controlledPreviewSecret(request: FastifyRequest): string | undefined {
   return typeof value === 'string' && value ? value : undefined;
 }
 
+function controlledObservationSecret(request: FastifyRequest): string | undefined {
+  const value = request.headers['x-controlled-shipment-observation'];
+  return typeof value === 'string' && value ? value : undefined;
+}
+
 export interface BuildServerOptions {
   store: Store;
   adapters: AdapterRegistry;
@@ -264,10 +269,16 @@ export function buildServer(options: BuildServerOptions): FastifyInstance {
   const controlledGate = config.controlledShipmentApproval
     ? new ControlledShipmentGate(config.controlledShipmentApproval)
     : null;
+  const controlledObservationGate = config.controlledShipmentObservation
+    ? new ControlledShipmentObservationGate(config.controlledShipmentObservation)
+    : null;
   if (controlledPreviewGate && controlledGate) {
     throw new Error('Controlled shipment preview and approval runtimes must be separate');
   }
-  if ((controlledPreviewGate || controlledGate) && !loopbackHosts.has(config.host)) {
+  if ([controlledPreviewGate, controlledGate, controlledObservationGate].filter(Boolean).length > 1) {
+    throw new Error('Controlled shipment ceremony runtimes must be separate');
+  }
+  if ((controlledPreviewGate || controlledGate || controlledObservationGate) && !loopbackHosts.has(config.host)) {
     throw new Error('Controlled shipment ceremony is loopback-only');
   }
   const logistics = new LogisticsService(store, adapters);
@@ -276,7 +287,7 @@ export function buildServer(options: BuildServerOptions): FastifyInstance {
   const automaticShipping = new AutomaticShippingService(store, logistics, packaging, routing);
   const starkenCatalogSync = secrets ? new StarkenCatalogSyncService(store, secrets) : null;
   const app = Fastify({
-    logger: { level: config.logLevel, redact: ['req.headers.authorization', 'req.headers.x-controlled-shipment-approval', 'req.headers.x-controlled-shipment-preview', '*.token', '*.secret', '*.password'] },
+    logger: { level: config.logLevel, redact: ['req.headers.authorization', 'req.headers.x-controlled-shipment-approval', 'req.headers.x-controlled-shipment-preview', 'req.headers.x-controlled-shipment-observation', '*.token', '*.secret', '*.password'] },
     genReqId: (request) => String(request.headers['x-correlation-id'] ?? newId()),
     bodyLimit: 512 * 1024,
   });
@@ -290,10 +301,12 @@ export function buildServer(options: BuildServerOptions): FastifyInstance {
     }
   });
 
-  if (controlledPreviewGate || controlledGate) {
+  if (controlledPreviewGate || controlledGate || controlledObservationGate) {
     const allowedMutations = controlledPreviewGate
       ? new Set(['/v1/controlled-quotes', '/v1/controlled-shipment-digest'])
-      : new Set(['/v1/controlled-shipments']);
+      : controlledGate
+        ? new Set(['/v1/controlled-shipments'])
+        : new Set(['/v1/controlled-shipment-observation']);
     app.addHook('onRequest', async (request, reply) => {
       if (!request.url.startsWith('/v1/')) return;
       if (request.method === 'GET' || request.method === 'HEAD') return;
@@ -323,7 +336,7 @@ export function buildServer(options: BuildServerOptions): FastifyInstance {
   app.get('/healthz', async () => ({
     ok: true,
     service: 'mercadolibre-me1-chile-integrator',
-    version: '0.8.0',
+    version: '0.8.1',
     providers: adapters.providers(),
   }));
 
@@ -591,6 +604,29 @@ export function buildServer(options: BuildServerOptions): FastifyInstance {
         request.id,
       );
       return reply.status(201).send(shipment);
+    });
+  }
+
+  if (controlledObservationGate) {
+    app.post('/v1/controlled-shipment-observation', async (request) => {
+      const body = objectBody(request);
+      const input = {
+        tenantId: requiredString(body, 'tenantId'),
+        provider: providerOf(body.provider),
+        shipmentId: requiredString(body, 'shipmentId'),
+      };
+      controlledObservationGate.assertScope(
+        input.tenantId,
+        input.provider,
+        input.shipmentId,
+        controlledObservationSecret(request),
+      );
+      return logistics.observeControlledShipment(
+        input,
+        controlledObservationGate.observation.observationId,
+        'controlled-observation',
+        request.id,
+      );
     });
   }
 

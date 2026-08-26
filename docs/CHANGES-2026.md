@@ -1,3 +1,9 @@
+# 26 August 2026 — v0.8.1 controlled shipment observation
+
+Adds a third loopback-only controlled runtime for one existing shipment: short-lived tenant/provider/shipment-scoped reconciliation and tracking while the carrier remains disabled. Starken reconciliation reads issuance state via the official consultation GET, persists discovered OF/label metadata, and tracking events remain deduplicated and monotonic. Preview, approval and observation modes are mutually exclusive and lock unrelated mutations.
+
+---
+
 # 26 August 2026 — v0.8.0 controlled shipment ceremony
 
 The core now separates a read-only preview gate from an exact-payload one-shot create gate for first-production shipment ceremonies. Both are disabled by default, mutually exclusive, loopback-only, secret-hash protected, tenant/provider scoped and limited to <=60-minute windows. While either ceremony gate is active, all other non-GET `/v1/` mutations are locked. The preview gate can also derive the normalized create-payload SHA-256 without provider I/O. The create gate requires the carrier to remain disabled, binds approval to that normalized shipment SHA-256, atomically claims idempotency before provider I/O, rejects key reuse with a different payload, and records a dedicated audit action without storing the approval secret.

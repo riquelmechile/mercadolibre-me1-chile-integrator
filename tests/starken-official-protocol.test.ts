@@ -218,6 +218,29 @@ test('official Starken tracking maps history only through explicit configured st
   });
 });
 
+
+
+test('official Starken reconciliation resolves issuance to freight order without creating', async () => {
+  await withJsonServer((req, _body, res) => {
+    assert.equal(req.url, '/emision/consulta/123');
+    assert.equal(req.method, 'GET');
+    res.setHeader('content-type', 'application/json');
+    res.end(JSON.stringify({ id: '123', orden_flete: '456', etiqueta: 'https://example.invalid/label-456', estado: 'EMITIDO' }));
+  }, async (baseUrl) => {
+    const adapter = new StarkenAdapter(new CountingSecretProvider());
+    const shipment: Shipment = {
+      id: 'shipment-reconcile', tenantId: 'tenant-example', provider: 'starken', externalOrderId: 'ORDER-REC',
+      marketplaceShipmentId: null, providerShipmentRef: '123', trackingNumber: null, status: 'created',
+      serviceCode: 'NORMAL', idempotencyKey: 'order-rec', metadata: {},
+      createdAt: '2026-08-25T19:00:00.000Z', updatedAt: '2026-08-25T19:00:00.000Z',
+    };
+    const result = await adapter.reconcileShipment!(shipment, officialConnection(baseUrl));
+    assert.equal(result.trackingNumber, '456');
+    assert.equal(result.labelUrl, 'https://example.invalid/label-456');
+    assert.deepEqual(result.metadata, { protocol: 'starken-plugin-gateway-v1', issuanceId: '123', freightOrder: '456', rawState: 'EMITIDO' });
+  });
+});
+
 test('official Starken protocol rejects an origin agency outside the configured allowlist before secret/network', async () => {
   const secrets = new CountingSecretProvider();
   const adapter = new StarkenAdapter(secrets);

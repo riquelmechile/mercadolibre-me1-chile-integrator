@@ -5,6 +5,7 @@ import {
   type CarrierCapability,
   type CarrierConnection,
   type CarrierProvider,
+  type ProviderShipmentReconciliation,
   type ProviderShipmentResult,
   type QuoteInput,
   type QuoteResult,
@@ -115,6 +116,12 @@ export class StarkenAdapter implements CourierAdapter {
     return isOfficialStarkenProtocol(connection)
       ? this.official.createShipment(input, connection)
       : this.contractDriven.createShipment(input, connection);
+  }
+
+  reconcileShipment(shipment: import('./domain.js').Shipment, connection: CarrierConnection): Promise<ProviderShipmentReconciliation> {
+    return isOfficialStarkenProtocol(connection)
+      ? this.official.reconcileShipment(shipment, connection)
+      : Promise.resolve({ ...(shipment.trackingNumber ? { trackingNumber: shipment.trackingNumber } : {}) });
   }
 
   tracking(shipment: import('./domain.js').Shipment, connection: CarrierConnection) {

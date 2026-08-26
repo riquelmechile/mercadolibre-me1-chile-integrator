@@ -462,6 +462,22 @@ export class SqliteStore implements Store {
     return row ? this.mapShipment(row) : null;
   }
 
+  updateShipmentProviderState(
+    tenantId: string,
+    shipmentId: string,
+    patch: { trackingNumber?: string; metadata?: Record<string, unknown>; updatedAt: string },
+  ): Shipment {
+    const current = this.getShipment(tenantId, shipmentId);
+    if (!current) throw new NotFoundError('Shipment not found', { tenantId, shipmentId });
+    const trackingNumber = patch.trackingNumber ?? current.trackingNumber;
+    const metadata = { ...current.metadata, ...(patch.metadata ?? {}) };
+    const result = this.db
+      .prepare('UPDATE shipments SET tracking_number=?,metadata_json=?,updated_at=? WHERE tenant_id=? AND id=?')
+      .run(trackingNumber, JSON.stringify(metadata), patch.updatedAt, tenantId, shipmentId);
+    if (Number(result.changes) !== 1) throw new NotFoundError('Shipment not found', { tenantId, shipmentId });
+    return this.getShipment(tenantId, shipmentId)!;
+  }
+
   updateShipmentStatus(tenantId: string, shipmentId: string, status: Shipment['status'], updatedAt: string): Shipment {
     const result = this.db
       .prepare('UPDATE shipments SET status=?,updated_at=? WHERE tenant_id=? AND id=?')

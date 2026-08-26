@@ -18,6 +18,11 @@ export interface ControlledShipmentApproval extends ControlledWindow {
   payloadSha256: string;
 }
 
+export interface ControlledShipmentObservation extends ControlledWindow {
+  observationId: string;
+  shipmentId: string;
+}
+
 const SHA256_HEX = /^[a-f0-9]{64}$/;
 const MAX_WINDOW_TTL_MS = 60 * 60 * 1000;
 
@@ -72,6 +77,13 @@ export function validateControlledShipmentPreview(value: ControlledShipmentPrevi
   return value;
 }
 
+export function validateControlledShipmentObservation(value: ControlledShipmentObservation): ControlledShipmentObservation {
+  if (!value.observationId.trim()) throw new Error('controlled shipment observationId is required');
+  if (!value.shipmentId.trim()) throw new Error('controlled shipment observation shipmentId is required');
+  validateWindow(value, 'controlled shipment observation');
+  return value;
+}
+
 export function validateControlledShipmentApproval(value: ControlledShipmentApproval): ControlledShipmentApproval {
   if (!value.approvalId.trim()) throw new Error('controlled shipment approvalId is required');
   validateWindow(value, 'controlled shipment approval');
@@ -103,5 +115,19 @@ export class ControlledShipmentGate {
     const actual = Buffer.from(controlledShipmentPayloadSha256(input), 'hex');
     const expected = Buffer.from(this.approval.payloadSha256, 'hex');
     if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) throw denied();
+  }
+}
+
+
+export class ControlledShipmentObservationGate {
+  readonly observation: ControlledShipmentObservation;
+
+  constructor(observation: ControlledShipmentObservation) {
+    this.observation = validateControlledShipmentObservation(observation);
+  }
+
+  assertScope(tenantId: string, provider: CarrierProvider, shipmentId: string, secret: string | undefined, now = Date.now()): void {
+    assertWindow(this.observation, tenantId, provider, secret, now);
+    if (shipmentId !== this.observation.shipmentId) throw denied();
   }
 }

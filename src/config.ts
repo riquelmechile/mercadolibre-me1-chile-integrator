@@ -1,8 +1,10 @@
 import { IntegrationGatedError, type CarrierProvider } from './domain.js';
 import {
   validateControlledShipmentApproval,
+  validateControlledShipmentObservation,
   validateControlledShipmentPreview,
   type ControlledShipmentApproval,
+  type ControlledShipmentObservation,
   type ControlledShipmentPreview,
 } from './controlled-shipment.js';
 import type { SecretProvider } from './ports.js';
@@ -18,6 +20,7 @@ export interface AppConfig {
   apiKey?: string;
   controlledShipmentPreview?: ControlledShipmentPreview;
   controlledShipmentApproval?: ControlledShipmentApproval;
+  controlledShipmentObservation?: ControlledShipmentObservation;
 }
 
 const carrierProviders = new Set<CarrierProvider>(['mock', 'starken', 'blueexpress', 'chilexpress']);
@@ -54,6 +57,28 @@ function controlledShipmentPreviewFromEnv(env: NodeJS.ProcessEnv): ControlledShi
   });
 }
 
+function controlledShipmentObservationFromEnv(env: NodeJS.ProcessEnv): ControlledShipmentObservation | undefined {
+  const raw = {
+    observationId: env.CONTROLLED_SHIPMENT_OBSERVATION_ID,
+    tenantId: env.CONTROLLED_SHIPMENT_OBSERVATION_TENANT_ID,
+    provider: env.CONTROLLED_SHIPMENT_OBSERVATION_PROVIDER,
+    shipmentId: env.CONTROLLED_SHIPMENT_OBSERVATION_SHIPMENT_ID,
+    secretSha256: env.CONTROLLED_SHIPMENT_OBSERVATION_SECRET_SHA256,
+    issuedAt: env.CONTROLLED_SHIPMENT_OBSERVATION_ISSUED_AT,
+    expiresAt: env.CONTROLLED_SHIPMENT_OBSERVATION_EXPIRES_AT,
+  };
+  if (!allOrNone(raw, 'controlled shipment observation')) return undefined;
+  return validateControlledShipmentObservation({
+    observationId: raw.observationId!,
+    tenantId: raw.tenantId!,
+    provider: providerFrom(raw.provider!, 'controlled shipment observation'),
+    shipmentId: raw.shipmentId!,
+    secretSha256: raw.secretSha256!,
+    issuedAt: raw.issuedAt!,
+    expiresAt: raw.expiresAt!,
+  });
+}
+
 function controlledShipmentApprovalFromEnv(env: NodeJS.ProcessEnv): ControlledShipmentApproval | undefined {
   const raw = {
     approvalId: env.CONTROLLED_SHIPMENT_APPROVAL_ID,
@@ -79,6 +104,7 @@ function controlledShipmentApprovalFromEnv(env: NodeJS.ProcessEnv): ControlledSh
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const controlledShipmentPreview = controlledShipmentPreviewFromEnv(env);
   const controlledShipmentApproval = controlledShipmentApprovalFromEnv(env);
+  const controlledShipmentObservation = controlledShipmentObservationFromEnv(env);
   return {
     host: env.APP_HOST ?? '127.0.0.1',
     port: Number(env.APP_PORT ?? 8787),
@@ -90,6 +116,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     apiKey: env.APP_API_KEY || undefined,
     ...(controlledShipmentPreview ? { controlledShipmentPreview } : {}),
     ...(controlledShipmentApproval ? { controlledShipmentApproval } : {}),
+    ...(controlledShipmentObservation ? { controlledShipmentObservation } : {}),
   };
 }
 

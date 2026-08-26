@@ -6,6 +6,7 @@ import type {
   CarrierProvider,
   IdempotencyRecord,
   PackagingProfile,
+  ProviderShipmentReconciliation,
   ProviderShipmentResult,
   QuoteInput,
   QuoteResult,
@@ -30,6 +31,7 @@ export interface CourierAdapter {
     input: ShipmentCreateInput,
     connection: CarrierConnection,
   ): Promise<ProviderShipmentResult>;
+  reconcileShipment?(shipment: Shipment, connection: CarrierConnection): Promise<ProviderShipmentReconciliation>;
   tracking?(shipment: Shipment, connection: CarrierConnection): Promise<TrackingEventInput[]>;
 }
 
@@ -73,6 +75,11 @@ export interface Store {
 
   createShipment(shipment: Shipment): Shipment;
   getShipment(tenantId: string, shipmentId: string): Shipment | null;
+  updateShipmentProviderState(
+    tenantId: string,
+    shipmentId: string,
+    patch: { trackingNumber?: string; metadata?: Record<string, unknown>; updatedAt: string },
+  ): Shipment;
   updateShipmentStatus(
     tenantId: string,
     shipmentId: string,

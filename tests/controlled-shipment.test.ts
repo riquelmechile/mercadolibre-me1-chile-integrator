@@ -10,7 +10,9 @@ import {
   type ProviderShipmentResult,
   type QuoteInput,
   type QuoteResult,
+  type Shipment,
   type ShipmentCreateInput,
+  type TrackingEventInput,
 } from '../src/domain.js';
 import type { CourierAdapter } from '../src/ports.js';
 import { buildServer } from '../src/server.js';
@@ -38,9 +40,11 @@ function payloadDigest(input: ShipmentCreateInput): string {
 
 class ControlledTestAdapter implements CourierAdapter {
   readonly provider = 'starken' as const;
-  readonly caps = new Set<CarrierCapability>(['quote', 'create_shipment']);
+  readonly caps = new Set<CarrierCapability>(['quote', 'create_shipment', 'tracking']);
   quoteCalls = 0;
   createCalls = 0;
+  reconcileCalls = 0;
+  trackingCalls = 0;
   createDelayMs = 0;
   lastConnection: CarrierConnection | null = null;
 
@@ -76,6 +80,32 @@ class ControlledTestAdapter implements CourierAdapter {
       status: 'label_ready',
       metadata: { fixture: true },
     };
+  }
+
+  async reconcileShipment(shipment: Shipment, connection: CarrierConnection) {
+    this.reconcileCalls += 1;
+    this.lastConnection = connection;
+    return {
+      trackingNumber: shipment.trackingNumber ?? 'OF-OBSERVED-1',
+      labelUrl: 'https://example.invalid/observed-label',
+      status: 'label_ready' as const,
+      metadata: { reconciled: true },
+    };
+  }
+
+  async tracking(shipment: Shipment, connection: CarrierConnection): Promise<TrackingEventInput[]> {
+    this.trackingCalls += 1;
+    this.lastConnection = connection;
+    return [
+      {
+        tenantId: shipment.tenantId, shipmentId: shipment.id, providerEventId: 'observed-event-1',
+        canonicalStatus: 'in_transit', occurredAt: '2026-08-26T12:00:00.000Z', rawStatusCode: 'TRANSITO',
+      },
+      {
+        tenantId: shipment.tenantId, shipmentId: shipment.id, providerEventId: 'observed-event-2',
+        canonicalStatus: 'delivered', occurredAt: '2026-08-26T13:00:00.000Z', rawStatusCode: 'ENTREGADO', final: true,
+      },
+    ];
   }
 }
 
@@ -167,6 +197,7 @@ function fixture() {
 
 const approvalHeader = (secret: string) => ({ 'x-controlled-shipment-approval': secret });
 const previewHeader = (secret: string) => ({ 'x-controlled-shipment-preview': secret });
+const observationHeader = (secret: string) => ({ 'x-controlled-shipment-observation': secret });
 
 test('controlled routes are absent by default and normal shipment route still rejects disabled carriers', async () => {
   const { store, adapters, shipment, secret, baseConfig } = fixture();
@@ -351,4 +382,94 @@ test('controlled approval TTL cannot exceed sixty minutes', () => {
     /TTL must not exceed 60 minutes/i,
   );
   store.close();
+});
+
+
+test('observation runtime is mutually exclusive, loopback-only and TTL-bounded', () => {
+  const { store, adapters, tenant, approval, baseConfig } = fixture();
+  const observation = {
+    observationId: 'observation-fixture-1', tenantId: tenant.id, provider: 'starken' as const, shipmentId: 'shipment-1',
+    secretSha256: sha256('observation-secret'), issuedAt: new Date(Date.now() - 1_000).toISOString(), expiresAt: new Date(Date.now() + 60_000).toISOString(),
+  };
+  assert.throws(
+    () => buildServer({ store, adapters, config: { ...baseConfig, controlledShipmentApproval: approval, controlledShipmentObservation: observation } }),
+    /controlled shipment.*runtimes must be separate/i,
+  );
+  assert.throws(
+    () => buildServer({ store, adapters, config: { ...baseConfig, host: '0.0.0.0', apiKey: 'fixture-key', controlledShipmentObservation: observation } }),
+    /controlled shipment.*loopback/i,
+  );
+  assert.throws(
+    () => buildServer({ store, adapters, config: { ...baseConfig, controlledShipmentObservation: { ...observation, expiresAt: new Date(Date.now() + 61 * 60_000).toISOString() } } }),
+    /TTL must not exceed 60 minutes/i,
+  );
+  store.close();
+});
+
+test('controlled observation reconciles and ingests tracking while carrier remains disabled', async () => {
+  const { store, adapter, adapters, tenant, connection, shipment, baseConfig } = fixture();
+  const persisted: Shipment = store.createShipment({
+    id: newId(), tenantId: tenant.id, provider: 'starken', externalOrderId: shipment.externalOrderId, marketplaceShipmentId: null,
+    providerShipmentRef: 'issuance-observation-1', trackingNumber: null, status: 'created', serviceCode: 'NORMAL',
+    idempotencyKey: shipment.idempotencyKey, metadata: {}, createdAt: nowIso(), updatedAt: nowIso(),
+  });
+  const secret = 'fixture-observation-secret';
+  const observation = {
+    observationId: 'observation-fixture-1', tenantId: tenant.id, provider: 'starken' as const, shipmentId: persisted.id,
+    secretSha256: sha256(secret), issuedAt: new Date(Date.now() - 1_000).toISOString(), expiresAt: new Date(Date.now() + 60_000).toISOString(),
+  };
+  const app = buildServer({ store, adapters, config: { ...baseConfig, controlledShipmentObservation: observation } });
+  assert.equal(app.hasRoute({ method: 'POST', url: '/v1/controlled-shipments' }), false);
+  assert.equal(app.hasRoute({ method: 'POST', url: '/v1/controlled-quotes' }), false);
+  const locked = await app.inject({ method: 'POST', url: '/v1/shipments', payload: shipment });
+  assert.equal(locked.statusCode, 423);
+  const denied = await app.inject({ method: 'POST', url: '/v1/controlled-shipment-observation', headers: observationHeader('wrong'), payload: { tenantId: tenant.id, provider: 'starken', shipmentId: persisted.id } });
+  assert.equal(denied.statusCode, 403);
+  assert.equal(adapter.reconcileCalls, 0);
+  assert.equal(adapter.trackingCalls, 0);
+
+  const first = await app.inject({ method: 'POST', url: '/v1/controlled-shipment-observation', headers: observationHeader(secret), payload: { tenantId: tenant.id, provider: 'starken', shipmentId: persisted.id } });
+  assert.equal(first.statusCode, 200, first.body);
+  assert.equal(first.json().shipment.trackingNumber, 'OF-OBSERVED-1');
+  assert.equal(first.json().shipment.metadata.labelUrl, 'https://example.invalid/observed-label');
+  assert.equal(first.json().events.length, 2);
+  assert.equal(adapter.reconcileCalls, 1);
+  assert.equal(adapter.trackingCalls, 1);
+  assert.equal(adapter.lastConnection?.id, connection.id);
+  assert.equal(adapter.lastConnection?.enabled, false);
+  assert.equal(store.listTrackingEvents(tenant.id, persisted.id).length, 2);
+
+  const second = await app.inject({ method: 'POST', url: '/v1/controlled-shipment-observation', headers: observationHeader(secret), payload: { tenantId: tenant.id, provider: 'starken', shipmentId: persisted.id } });
+  assert.equal(second.statusCode, 200, second.body);
+  assert.equal(store.listTrackingEvents(tenant.id, persisted.id).length, 2, 'repeated observation must dedupe provider events');
+  assert.equal(adapter.reconcileCalls, 1, 'reconciliation should not repeat after tracking number+label are persisted');
+  assert.equal(adapter.trackingCalls, 2);
+  const audit = store.listAudit(tenant.id, 10);
+  assert.ok(audit.some((event) => event.action === 'shipment.observe.controlled' && event.metadata.observationId === observation.observationId));
+  assert.ok(!JSON.stringify(audit).includes(secret));
+  await app.close();
+});
+
+test('controlled observation rejects enabled carriers before provider reads', async () => {
+  const { store, adapter, adapters, tenant, connection, shipment, baseConfig } = fixture();
+  store.close();
+  const fresh = new SqliteStore(':memory:');
+  fresh.createTenant({ id: tenant.id, name: 'Observation Enabled Fixture', createdAt: nowIso() });
+  fresh.createCarrierConnection({ ...connection, enabled: true });
+  const persisted = fresh.createShipment({
+    id: newId(), tenantId: tenant.id, provider: 'starken', externalOrderId: shipment.externalOrderId, marketplaceShipmentId: null,
+    providerShipmentRef: 'issuance-enabled-1', trackingNumber: null, status: 'created', serviceCode: 'NORMAL',
+    idempotencyKey: shipment.idempotencyKey, metadata: {}, createdAt: nowIso(), updatedAt: nowIso(),
+  });
+  const secret = 'fixture-observation-secret';
+  const observation = {
+    observationId: 'observation-enabled', tenantId: tenant.id, provider: 'starken' as const, shipmentId: persisted.id,
+    secretSha256: sha256(secret), issuedAt: new Date(Date.now() - 1_000).toISOString(), expiresAt: new Date(Date.now() + 60_000).toISOString(),
+  };
+  const app = buildServer({ store: fresh, adapters, config: { ...baseConfig, controlledShipmentObservation: observation } });
+  const response = await app.inject({ method: 'POST', url: '/v1/controlled-shipment-observation', headers: observationHeader(secret), payload: { tenantId: tenant.id, provider: 'starken', shipmentId: persisted.id } });
+  assert.equal(response.statusCode, 409);
+  assert.equal(adapter.reconcileCalls, 0);
+  assert.equal(adapter.trackingCalls, 0);
+  await app.close();
 });

@@ -354,6 +354,28 @@ export class OfficialStarkenPluginAdapter implements CourierAdapter {
     };
   }
 
+  async reconcileShipment(shipment: Shipment, connection: CarrierConnection) {
+    requireCapability(connection, 'tracking');
+    const issuance = await this.request(connection, `/emision/consulta/${encodeURIComponent(shipment.providerShipmentRef)}`, 'GET');
+    if (!isRecord(issuance)) throw gated('Starken issuance reconciliation response must be an object');
+    const raw = issuance.orden_flete;
+    const freightOrder = raw == null || String(raw) === '0' || !String(raw).trim()
+      ? undefined
+      : scalar(raw, 'consulta.orden_flete');
+    const labelUrl = asOptionalUrl(issuance.etiqueta);
+    const rawState = typeof issuance.estado === 'string' && issuance.estado.trim() ? issuance.estado.trim() : undefined;
+    return {
+      ...(freightOrder ? { trackingNumber: freightOrder } : {}),
+      ...(labelUrl ? { labelUrl } : {}),
+      metadata: {
+        protocol: OFFICIAL_PROTOCOL,
+        issuanceId: shipment.providerShipmentRef,
+        ...(freightOrder ? { freightOrder } : {}),
+        ...(rawState ? { rawState } : {}),
+      },
+    };
+  }
+
   async tracking(shipment: Shipment, connection: CarrierConnection): Promise<TrackingEventInput[]> {
     requireCapability(connection, 'tracking');
     const statusMap = trackingStatusMap(connection);

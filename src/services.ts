@@ -253,6 +253,60 @@ export class LogisticsService {
     }
   }
 
+  async observeControlledShipment(
+    input: { tenantId: string; provider: CarrierProvider; shipmentId: string },
+    observationId: string,
+    actor = 'controlled-observation',
+    correlationId = newId(),
+  ): Promise<{ shipment: Shipment; events: TrackingEvent[] }> {
+    const connection = this.requireControlledCarrier(input.tenantId, input.provider);
+    let shipment = this.store.getShipment(input.tenantId, input.shipmentId);
+    if (!shipment) throw new NotFoundError('Shipment not found', { tenantId: input.tenantId, shipmentId: input.shipmentId });
+    if (shipment.provider !== input.provider) {
+      throw new ConflictError('Controlled observation provider does not match shipment provider', {
+        shipmentProvider: shipment.provider, requestedProvider: input.provider,
+      });
+    }
+    const adapter = this.adapters.get(input.provider);
+    if (!adapter.capabilities(connection).has('tracking') || !adapter.tracking) {
+      throw new UnsupportedCapabilityError(input.provider, 'tracking');
+    }
+
+    const labelMissing = typeof shipment.metadata.labelUrl !== 'string' || !shipment.metadata.labelUrl;
+    if (adapter.reconcileShipment && (!shipment.trackingNumber || labelMissing)) {
+      const reconciliation = await adapter.reconcileShipment(shipment, connection);
+      const metadata = {
+        ...(reconciliation.metadata ?? {}),
+        ...(reconciliation.labelUrl ? { labelUrl: reconciliation.labelUrl } : {}),
+      };
+      if (reconciliation.trackingNumber || Object.keys(metadata).length > 0) {
+        shipment = this.store.updateShipmentProviderState(input.tenantId, input.shipmentId, {
+          ...(reconciliation.trackingNumber ? { trackingNumber: reconciliation.trackingNumber } : {}),
+          ...(Object.keys(metadata).length > 0 ? { metadata } : {}),
+          updatedAt: nowIso(),
+        });
+      }
+    }
+
+    const providerEvents = await adapter.tracking(shipment, connection);
+    const events: TrackingEvent[] = [];
+    for (const event of providerEvents) {
+      events.push(this.ingestTracking({ ...event, tenantId: shipment.tenantId, shipmentId: shipment.id }, actor, correlationId));
+    }
+    const updated = this.store.getShipment(input.tenantId, input.shipmentId)!;
+    this.audit({
+      tenantId: input.tenantId,
+      actor,
+      action: 'shipment.observe.controlled',
+      resourceType: 'shipment',
+      resourceId: input.shipmentId,
+      result: 'ok',
+      correlationId,
+      metadata: { provider: input.provider, observationId, providerEvents: providerEvents.length },
+    });
+    return { shipment: updated, events };
+  }
+
   ingestTracking(input: TrackingEventInput, actor = 'provider', correlationId = newId()): TrackingEvent {
     const shipment = this.store.getShipment(input.tenantId, input.shipmentId);
     if (!shipment) throw new NotFoundError('Shipment not found', { shipmentId: input.shipmentId });

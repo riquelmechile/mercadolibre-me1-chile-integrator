@@ -57,3 +57,28 @@ test('complete controlled shipment preview environment is scope-only and contain
   assert.equal(config.controlledShipmentApproval, undefined);
   assert.ok(!JSON.stringify(config).includes(secret));
 });
+
+
+test('controlled shipment observation environment fails closed when partial', () => {
+  assert.throws(
+    () => loadConfig({ CONTROLLED_SHIPMENT_OBSERVATION_ID: 'observation-1' }),
+    /controlled shipment observation environment is incomplete/i,
+  );
+});
+
+test('controlled shipment observation environment parses scoped metadata without raw secret', () => {
+  const secret = 'runtime-observation-secret';
+  const config = loadConfig({
+    CONTROLLED_SHIPMENT_OBSERVATION_ID: 'observation-1',
+    CONTROLLED_SHIPMENT_OBSERVATION_TENANT_ID: 'tenant-1',
+    CONTROLLED_SHIPMENT_OBSERVATION_PROVIDER: 'starken',
+    CONTROLLED_SHIPMENT_OBSERVATION_SHIPMENT_ID: 'shipment-1',
+    CONTROLLED_SHIPMENT_OBSERVATION_SECRET_SHA256: hash(secret),
+    CONTROLLED_SHIPMENT_OBSERVATION_ISSUED_AT: new Date(Date.now() - 1_000).toISOString(),
+    CONTROLLED_SHIPMENT_OBSERVATION_EXPIRES_AT: new Date(Date.now() + 60_000).toISOString(),
+  });
+  assert.equal(config.controlledShipmentObservation?.provider, 'starken');
+  assert.equal(config.controlledShipmentObservation?.shipmentId, 'shipment-1');
+  assert.equal(config.controlledShipmentObservation?.secretSha256, hash(secret));
+  assert.ok(!JSON.stringify(config).includes(secret));
+});
