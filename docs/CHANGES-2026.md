@@ -1,3 +1,11 @@
+# 26 August 2026 — v0.8.0 controlled shipment ceremony
+
+The core now separates a read-only preview gate from an exact-payload one-shot create gate for first-production shipment ceremonies. Both are disabled by default, mutually exclusive, loopback-only, secret-hash protected, tenant/provider scoped and limited to <=60-minute windows. While either ceremony gate is active, all other non-GET `/v1/` mutations are locked. The preview gate can also derive the normalized create-payload SHA-256 without provider I/O. The create gate requires the carrier to remain disabled, binds approval to that normalized shipment SHA-256, atomically claims idempotency before provider I/O, rejects key reuse with a different payload, and records a dedicated audit action without storing the approval secret.
+
+Normal quote/create/automatic routes retain their existing enabled-carrier semantics.
+
+---
+
 # 26 August 2026 — v0.7.3 Starken origin allowlist hard gate
 
 Starken shipment creation now requires `allowedOriginAgencyCodes` to be present and non-empty. Missing, malformed, empty, or non-matching origin policy fails before secret resolution and before network I/O. This closes the fail-open path found during a private pilot high-risk review.

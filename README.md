@@ -4,7 +4,7 @@ Open research and architecture for a **multi-tenant logistics integration platfo
 
 > Research cut: **25 August 2026 (Chile)**.
 >
-> This repository now includes an **executable v0.7.0 MVP runtime** plus the August 2026 research baseline. It contains no production credentials, no private courier endpoints and no live mutations against Mercado Libre or carriers by default.
+> This repository now includes an **executable v0.8.0 MVP runtime** plus the August 2026 research baseline. It contains no production credentials, no private courier endpoints and no live mutations against Mercado Libre or carriers by default.
 
 ## Why this project exists
 
@@ -110,6 +110,7 @@ See [`docs/CHANGES-2026.md`](docs/CHANGES-2026.md).
 - [`docs/STARKEN-EVIDENCE.md`](docs/STARKEN-EVIDENCE.md) — provenance ledger separating current official evidence from historical/third-party clues.
 - [`docs/PUBLIC-PRIVATE-BOUNDARY.md`](docs/PUBLIC-PRIVATE-BOUNDARY.md) — repository boundary for generic product code vs tenant-specific pilot data.
 - [`docs/AUTOMATIC-SHIPPING.md`](docs/AUTOMATIC-SHIPPING.md) — automatic packaging from a SKU/family dimension list and order-to-shipment flow.
+- [`docs/CONTROLLED-SHIPMENT-CEREMONY.md`](docs/CONTROLLED-SHIPMENT-CEREMONY.md) — loopback-only preview + exact-payload one-shot production ceremony while normal carrier automation stays disabled.
 
 ## Evidence policy
 
@@ -152,4 +153,4 @@ See [`docs/MVP.md`](docs/MVP.md) for local setup, endpoints and the procedure fo
 
 ## Status
 
-**Research baseline: active. MVP runtime v0.7.0 implements automatic dimension-list shipping, versioned carrier location catalogs, local routing-code resolution, agency-limit enforcement, generic home/agency + payment/value intent, and the current official Starken plugin gateway for quote/OF/tracking with secrets kept outside Git. Dynamic Freight remains snapshot-first and the ME1 certification gate remains disabled.**
+**Research baseline: active. MVP runtime v0.8.0 implements automatic dimension-list shipping, versioned carrier location catalogs, local routing-code resolution, agency-limit enforcement, generic home/agency + payment/value intent, the current official Starken plugin gateway, and a loopback-only controlled first-shipment ceremony that keeps normal carrier automation disabled. Dynamic Freight remains snapshot-first and the ME1 certification gate remains disabled.**

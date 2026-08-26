@@ -1,6 +1,7 @@
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 import { AdapterRegistry } from './adapters.js';
 import { assertNoInlineSecrets, type AppConfig } from './config.js';
+import { ControlledShipmentGate, ControlledShipmentPreviewGate, controlledShipmentPayloadSha256 } from './controlled-shipment.js';
 import {
   AppError,
   ConflictError,
@@ -202,6 +203,48 @@ function packageOf(value: unknown): QuoteInput['package'] {
   return result;
 }
 
+function quoteInputOf(body: Record<string, unknown>): QuoteInput {
+  return {
+    tenantId: requiredString(body, 'tenantId'),
+    provider: providerOf(body.provider),
+    origin: addressOf(body.origin, 'origin'),
+    destination: addressOf(body.destination, 'destination'),
+    package: packageOf(body.package),
+    allowLive: body.allowLive === true,
+    ...(optionalEnum(body, 'deliveryPreference', deliveryPreferences) ? { deliveryPreference: optionalEnum(body, 'deliveryPreference', deliveryPreferences)! } : {}),
+    ...(optionalEnum(body, 'paymentMode', paymentModes) ? { paymentMode: optionalEnum(body, 'paymentMode', paymentModes)! } : {}),
+    ...(body.declaredValueClp != null ? { declaredValueClp: optionalNonNegativeNumber(body, 'declaredValueClp')! } : {}),
+  };
+}
+
+function shipmentCreateInputOf(body: Record<string, unknown>): ShipmentCreateInput {
+  return {
+    tenantId: requiredString(body, 'tenantId'),
+    provider: providerOf(body.provider),
+    externalOrderId: requiredString(body, 'externalOrderId'),
+    origin: addressOf(body.origin, 'origin'),
+    destination: addressOf(body.destination, 'destination'),
+    package: packageOf(body.package),
+    idempotencyKey: requiredString(body, 'idempotencyKey'),
+    ...(typeof body.marketplaceShipmentId === 'string' ? { marketplaceShipmentId: body.marketplaceShipmentId } : {}),
+    ...(typeof body.serviceCode === 'string' ? { serviceCode: body.serviceCode } : {}),
+    ...(optionalEnum(body, 'deliveryMode', deliveryModes) ? { deliveryMode: optionalEnum(body, 'deliveryMode', deliveryModes)! } : {}),
+    ...(optionalEnum(body, 'paymentMode', paymentModes) ? { paymentMode: optionalEnum(body, 'paymentMode', paymentModes)! } : {}),
+    ...(body.declaredValueClp != null ? { declaredValueClp: optionalNonNegativeNumber(body, 'declaredValueClp')! } : {}),
+    ...(body.recipient != null ? { recipient: recipientOf(body.recipient) } : {}),
+  };
+}
+
+function controlledApprovalSecret(request: FastifyRequest): string | undefined {
+  const value = request.headers['x-controlled-shipment-approval'];
+  return typeof value === 'string' && value ? value : undefined;
+}
+
+function controlledPreviewSecret(request: FastifyRequest): string | undefined {
+  const value = request.headers['x-controlled-shipment-preview'];
+  return typeof value === 'string' && value ? value : undefined;
+}
+
 export interface BuildServerOptions {
   store: Store;
   adapters: AdapterRegistry;
@@ -215,13 +258,25 @@ export function buildServer(options: BuildServerOptions): FastifyInstance {
   if (!loopbackHosts.has(config.host) && !config.apiKey) {
     throw new Error('APP_API_KEY is required when binding outside loopback');
   }
+  const controlledPreviewGate = config.controlledShipmentPreview
+    ? new ControlledShipmentPreviewGate(config.controlledShipmentPreview)
+    : null;
+  const controlledGate = config.controlledShipmentApproval
+    ? new ControlledShipmentGate(config.controlledShipmentApproval)
+    : null;
+  if (controlledPreviewGate && controlledGate) {
+    throw new Error('Controlled shipment preview and approval runtimes must be separate');
+  }
+  if ((controlledPreviewGate || controlledGate) && !loopbackHosts.has(config.host)) {
+    throw new Error('Controlled shipment ceremony is loopback-only');
+  }
   const logistics = new LogisticsService(store, adapters);
   const packaging = new PackagingResolver(store);
   const routing = new CarrierRoutingResolver(store);
   const automaticShipping = new AutomaticShippingService(store, logistics, packaging, routing);
   const starkenCatalogSync = secrets ? new StarkenCatalogSyncService(store, secrets) : null;
   const app = Fastify({
-    logger: { level: config.logLevel, redact: ['req.headers.authorization', '*.token', '*.secret', '*.password'] },
+    logger: { level: config.logLevel, redact: ['req.headers.authorization', 'req.headers.x-controlled-shipment-approval', 'req.headers.x-controlled-shipment-preview', '*.token', '*.secret', '*.password'] },
     genReqId: (request) => String(request.headers['x-correlation-id'] ?? newId()),
     bodyLimit: 512 * 1024,
   });
@@ -234,6 +289,23 @@ export function buildServer(options: BuildServerOptions): FastifyInstance {
       return reply.status(401).send({ error: 'unauthorized', correlationId: request.id });
     }
   });
+
+  if (controlledPreviewGate || controlledGate) {
+    const allowedMutations = controlledPreviewGate
+      ? new Set(['/v1/controlled-quotes', '/v1/controlled-shipment-digest'])
+      : new Set(['/v1/controlled-shipments']);
+    app.addHook('onRequest', async (request, reply) => {
+      if (!request.url.startsWith('/v1/')) return;
+      if (request.method === 'GET' || request.method === 'HEAD') return;
+      const path = request.url.split('?', 1)[0];
+      if (allowedMutations.has(path)) return;
+      return reply.status(423).send({
+        error: 'controlled_runtime_locked',
+        message: 'Controlled shipment runtime blocks all other mutations',
+        correlationId: request.id,
+      });
+    });
+  }
 
   app.setErrorHandler((error, request, reply) => {
     if (error instanceof AppError) {
@@ -251,7 +323,7 @@ export function buildServer(options: BuildServerOptions): FastifyInstance {
   app.get('/healthz', async () => ({
     ok: true,
     service: 'mercadolibre-me1-chile-integrator',
-    version: '0.7.3',
+    version: '0.8.0',
     providers: adapters.providers(),
   }));
 
@@ -451,19 +523,22 @@ export function buildServer(options: BuildServerOptions): FastifyInstance {
   });
 
   app.post('/v1/quotes', async (request) => {
-    const body = objectBody(request);
-    return logistics.quote({
-      tenantId: requiredString(body, 'tenantId'),
-      provider: providerOf(body.provider),
-      origin: addressOf(body.origin, 'origin'),
-      destination: addressOf(body.destination, 'destination'),
-      package: packageOf(body.package),
-      allowLive: body.allowLive === true,
-      ...(optionalEnum(body, 'deliveryPreference', deliveryPreferences) ? { deliveryPreference: optionalEnum(body, 'deliveryPreference', deliveryPreferences)! } : {}),
-      ...(optionalEnum(body, 'paymentMode', paymentModes) ? { paymentMode: optionalEnum(body, 'paymentMode', paymentModes)! } : {}),
-      ...(body.declaredValueClp != null ? { declaredValueClp: optionalNonNegativeNumber(body, 'declaredValueClp')! } : {}),
-    });
+    return logistics.quote(quoteInputOf(objectBody(request)));
   });
+
+  if (controlledPreviewGate) {
+    app.post('/v1/controlled-quotes', async (request) => {
+      const input = quoteInputOf(objectBody(request));
+      controlledPreviewGate.assertScope(input.tenantId, input.provider, controlledPreviewSecret(request));
+      return logistics.quoteControlled(input);
+    });
+
+    app.post('/v1/controlled-shipment-digest', async (request) => {
+      const input = shipmentCreateInputOf(objectBody(request));
+      controlledPreviewGate.assertScope(input.tenantId, input.provider, controlledPreviewSecret(request));
+      return { payloadSha256: controlledShipmentPayloadSha256(input) };
+    });
+  }
 
   app.post('/v1/automatic-shipments', async (request, reply) => {
     const body = objectBody(request);
@@ -500,25 +575,24 @@ export function buildServer(options: BuildServerOptions): FastifyInstance {
   });
 
   app.post('/v1/shipments', async (request, reply) => {
-    const body = objectBody(request);
-    const input: ShipmentCreateInput = {
-      tenantId: requiredString(body, 'tenantId'),
-      provider: providerOf(body.provider),
-      externalOrderId: requiredString(body, 'externalOrderId'),
-      origin: addressOf(body.origin, 'origin'),
-      destination: addressOf(body.destination, 'destination'),
-      package: packageOf(body.package),
-      idempotencyKey: requiredString(body, 'idempotencyKey'),
-      ...(typeof body.marketplaceShipmentId === 'string' ? { marketplaceShipmentId: body.marketplaceShipmentId } : {}),
-      ...(typeof body.serviceCode === 'string' ? { serviceCode: body.serviceCode } : {}),
-      ...(optionalEnum(body, 'deliveryMode', deliveryModes) ? { deliveryMode: optionalEnum(body, 'deliveryMode', deliveryModes)! } : {}),
-      ...(optionalEnum(body, 'paymentMode', paymentModes) ? { paymentMode: optionalEnum(body, 'paymentMode', paymentModes)! } : {}),
-      ...(body.declaredValueClp != null ? { declaredValueClp: optionalNonNegativeNumber(body, 'declaredValueClp')! } : {}),
-      ...(body.recipient != null ? { recipient: recipientOf(body.recipient) } : {}),
-    };
+    const input = shipmentCreateInputOf(objectBody(request));
     const shipment = await logistics.createShipment(input, 'api', request.id);
     return reply.status(201).send(shipment);
   });
+
+  if (controlledGate) {
+    app.post('/v1/controlled-shipments', async (request, reply) => {
+      const input = shipmentCreateInputOf(objectBody(request));
+      controlledGate.assertShipment(input, controlledApprovalSecret(request));
+      const shipment = await logistics.createControlledShipment(
+        input,
+        controlledGate.approval.approvalId,
+        'controlled-api',
+        request.id,
+      );
+      return reply.status(201).send(shipment);
+    });
+  }
 
   app.get('/v1/tenants/:tenantId/shipments/:shipmentId', async (request) => {
     const { tenantId, shipmentId } = request.params as { tenantId: string; shipmentId: string };

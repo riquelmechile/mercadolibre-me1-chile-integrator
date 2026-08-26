@@ -1,4 +1,5 @@
 import {
+  AppError,
   ConflictError,
   FINAL_SHIPMENT_STATUSES,
   NotFoundError,
@@ -17,6 +18,7 @@ import {
   type TrackingEventInput,
 } from './domain.js';
 import { AdapterRegistry } from './adapters.js';
+import { controlledShipmentPayloadSha256 } from './controlled-shipment.js';
 import type { Store } from './ports.js';
 
 function sameText(left: string | undefined, right: string | undefined): boolean {
@@ -53,17 +55,47 @@ export class LogisticsService {
     if (!this.store.getTenant(tenantId)) throw new NotFoundError('Tenant not found', { tenantId });
   }
 
-  private requireCarrier(tenantId: string, provider: CarrierProvider): CarrierConnection {
+  private requireExistingCarrier(tenantId: string, provider: CarrierProvider): CarrierConnection {
     this.requireTenant(tenantId);
     const connection = this.store.getCarrierConnection(tenantId, provider);
-    if (!connection || !connection.enabled) {
+    if (!connection) throw new NotFoundError('Carrier connection not found', { tenantId, provider });
+    return connection;
+  }
+
+  private requireCarrier(tenantId: string, provider: CarrierProvider): CarrierConnection {
+    const connection = this.requireExistingCarrier(tenantId, provider);
+    if (!connection.enabled) {
       throw new NotFoundError('Enabled carrier connection not found', { tenantId, provider });
+    }
+    return connection;
+  }
+
+  private requireControlledCarrier(tenantId: string, provider: CarrierProvider): CarrierConnection {
+    const connection = this.requireExistingCarrier(tenantId, provider);
+    if (connection.enabled) {
+      throw new ConflictError('Controlled shipment path requires a disabled carrier connection', { tenantId, provider });
     }
     return connection;
   }
 
   quote(input: QuoteInput): Promise<QuoteResult> {
     const connection = this.requireCarrier(input.tenantId, input.provider);
+    return this.quoteWithConnection(input, connection);
+  }
+
+  quoteControlled(input: QuoteInput): Promise<QuoteResult> {
+    const connection = this.requireControlledCarrier(input.tenantId, input.provider);
+    if (input.allowLive !== true) {
+      throw new AppError('invalid_request', 'Controlled quote requires allowLive=true', 400);
+    }
+    const adapter = this.adapters.get(input.provider);
+    if (!adapter.capabilities(connection).has('quote')) {
+      throw new UnsupportedCapabilityError(input.provider, 'quote');
+    }
+    return adapter.quote(input, connection);
+  }
+
+  private quoteWithConnection(input: QuoteInput, connection: CarrierConnection): Promise<QuoteResult> {
     const snapshot = this.store.getActiveTariffSnapshot(input.tenantId, input.provider);
     if (snapshot) {
       const candidates = snapshot.rules
@@ -109,8 +141,50 @@ export class LogisticsService {
 
   async createShipment(input: ShipmentCreateInput, actor = 'api', correlationId = newId()): Promise<Shipment> {
     const connection = this.requireCarrier(input.tenantId, input.provider);
+    return this.createShipmentWithConnection(input, connection, actor, correlationId, 'shipment.create');
+  }
+
+  async createControlledShipment(
+    input: ShipmentCreateInput,
+    approvalId: string,
+    actor = 'controlled-api',
+    correlationId = newId(),
+  ): Promise<Shipment> {
+    const connection = this.requireControlledCarrier(input.tenantId, input.provider);
+    return this.createShipmentWithConnection(
+      input,
+      connection,
+      actor,
+      correlationId,
+      'shipment.create.controlled',
+      { approvalId },
+      true,
+    );
+  }
+
+  private async createShipmentWithConnection(
+    input: ShipmentCreateInput,
+    connection: CarrierConnection,
+    actor: string,
+    correlationId: string,
+    auditAction: string,
+    auditMetadata: Record<string, unknown> = {},
+    strictFingerprint = false,
+  ): Promise<Shipment> {
     const idemKey = `shipment:create:${input.idempotencyKey}`;
+    const requestSha256 = controlledShipmentPayloadSha256(input);
+    const assertFingerprint = (record: ReturnType<Store['getIdempotency']>): void => {
+      if (!record) return;
+      const stored = record.response?.requestSha256;
+      if (typeof stored === 'string' && stored !== requestSha256) {
+        throw new ConflictError('Idempotency key was already used with a different shipment payload');
+      }
+      if (strictFingerprint && stored == null) {
+        throw new ConflictError('Controlled shipment cannot reuse a legacy idempotency record without a request fingerprint');
+      }
+    };
     const existing = this.store.getIdempotency(input.tenantId, idemKey);
+    assertFingerprint(existing);
     if (existing?.state === 'completed' && existing.response?.shipmentId) {
       const shipment = this.store.getShipment(input.tenantId, String(existing.response.shipmentId));
       if (shipment) return shipment;
@@ -122,7 +196,20 @@ export class LogisticsService {
       throw new ConflictError('Previous attempt failed; reconcile provider state before reusing this idempotency key');
     }
 
-    this.store.reserveIdempotency(input.tenantId, idemKey, nowIso());
+    const reservedAt = nowIso();
+    if (!this.store.claimIdempotency(input.tenantId, idemKey, reservedAt, { requestSha256 })) {
+      const claimed = this.store.getIdempotency(input.tenantId, idemKey);
+      assertFingerprint(claimed);
+      if (claimed?.state === 'completed' && claimed.response?.shipmentId) {
+        const shipment = this.store.getShipment(input.tenantId, String(claimed.response.shipmentId));
+        if (shipment) return shipment;
+      }
+      if (claimed?.state === 'failed') {
+        throw new ConflictError('Previous attempt failed; reconcile provider state before reusing this idempotency key');
+      }
+      throw new ConflictError('Shipment creation with this idempotency key is already pending');
+    }
+
     const adapter = this.adapters.get(input.provider);
     if (!adapter.capabilities(connection).has('create_shipment')) {
       this.store.failIdempotency(input.tenantId, idemKey, nowIso());
@@ -148,16 +235,16 @@ export class LogisticsService {
         updatedAt: now,
       };
       this.store.createShipment(shipment);
-      this.store.completeIdempotency(input.tenantId, idemKey, { shipmentId: shipment.id }, now);
+      this.store.completeIdempotency(input.tenantId, idemKey, { shipmentId: shipment.id, requestSha256 }, now);
       this.audit({
         tenantId: input.tenantId,
         actor,
-        action: 'shipment.create',
+        action: auditAction,
         resourceType: 'shipment',
         resourceId: shipment.id,
         result: 'ok',
         correlationId,
-        metadata: { provider: input.provider },
+        metadata: { provider: input.provider, ...auditMetadata },
       });
       return shipment;
     } catch (error) {

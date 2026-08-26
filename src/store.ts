@@ -547,12 +547,17 @@ export class SqliteStore implements Store {
     return row ? this.mapIdempotency(row) : null;
   }
 
-  reserveIdempotency(tenantId: string, key: string, now: string): IdempotencyRecord {
-    this.db
+  claimIdempotency(tenantId: string, key: string, now: string, initialResponse?: Record<string, unknown>): boolean {
+    const result = this.db
       .prepare(
         'INSERT OR IGNORE INTO idempotency_records(tenant_id,key,state,response_json,created_at,updated_at) VALUES(?,?,?,?,?,?)',
       )
-      .run(tenantId, key, 'pending', null, now, now);
+      .run(tenantId, key, 'pending', initialResponse ? JSON.stringify(initialResponse) : null, now, now);
+    return Number(result.changes) === 1;
+  }
+
+  reserveIdempotency(tenantId: string, key: string, now: string): IdempotencyRecord {
+    this.claimIdempotency(tenantId, key, now);
     return this.getIdempotency(tenantId, key)!;
   }
 

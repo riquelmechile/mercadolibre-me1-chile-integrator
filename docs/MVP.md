@@ -1,4 +1,4 @@
-# MVP runtime — v0.7.0
+# MVP runtime — v0.8.0
 
 **Implementation cut:** 25 August 2026.
 
@@ -13,7 +13,8 @@ This repository now includes an executable MVP for the logistics core described 
 - Courier connection records for `mock`, `starken`, `blueexpress`, `chilexpress`.
 - Versioned tariff snapshots with one active snapshot per tenant/provider.
 - Snapshot-first quote engine with volumetric-weight support.
-- Idempotent shipment creation.
+- Idempotent shipment creation with atomic claims and request fingerprints that reject key reuse with a different normalized payload.
+- Mutually exclusive loopback-only controlled preview/create gates for first-production shipment ceremonies while the carrier remains disabled; controlled runtimes lock every other non-GET `/v1/` mutation.
 - Canonical tracking events with duplicate detection and monotonic final states.
 - Append-only audit events.
 - Fastify HTTP API with correlation IDs and redacted secret headers.
@@ -25,7 +26,7 @@ This repository now includes an executable MVP for the logistics core described 
 
 The MVP deliberately does **not** guess private carrier API contracts.
 
-Starken can run through `starken-plugin-gateway-v1`; v0.7.0 can explicitly synchronize its location catalogs and resolve provider city/commune/agency codes locally from the active versioned snapshot. Blue Express and Chilexpress remain shell-gated until their official contracts are implemented.
+Starken can run through `starken-plugin-gateway-v1`; v0.8.0 can explicitly synchronize its location catalogs and resolve provider city/commune/agency codes locally from the active versioned snapshot. Blue Express and Chilexpress remain shell-gated until their official contracts are implemented.
 
 Secrets must not be placed in repository files or normal database rows. Connections store only a `credentialRef`. The default environment resolver maps for example:
 
@@ -153,10 +154,15 @@ Submitting the same idempotency key again returns the original shipment instead 
 | POST | `/v1/tenants/:tenantId/tariff-snapshots` | publish/version tariff rules |
 | POST | `/v1/quotes` | deterministic snapshot-first quote |
 | POST | `/v1/shipments` | idempotent provider shipment create |
+| POST | `/v1/controlled-quotes` | preview-only live quote on a disabled carrier; registered only with a scoped preview envelope |
+| POST | `/v1/controlled-shipment-digest` | preview-only normalized create-payload SHA-256; no provider I/O |
+| POST | `/v1/controlled-shipments` | exact-payload one-shot create on a disabled carrier; registered only with an approval envelope |
 | GET | `/v1/tenants/:tenantId/shipments/:shipmentId` | read shipment |
 | POST | `/v1/tenants/:tenantId/shipments/:shipmentId/tracking-events` | ingest canonical provider event |
 | GET | `/v1/tenants/:tenantId/shipments/:shipmentId/tracking-events` | list tracking history |
 | GET | `/v1/tenants/:tenantId/audit` | tenant audit trail |
+
+See `CONTROLLED-SHIPMENT-CEREMONY.md` for the two-runtime preview → explicit approval → one-shot create procedure.
 
 ## Adding an official carrier contract
 

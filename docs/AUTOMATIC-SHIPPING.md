@@ -14,7 +14,7 @@ Within the same level, the highest `priority` wins. A missing profile fails clos
 
 ```json
 {
-  "name": "PVC 300",
+  "name": "Flexible 300",
   "matchType": "sku",
   "matchValue": "FLEX-100",
   "priority": 100,
@@ -53,7 +53,7 @@ Use `POST /v1/tenants/:tenantId/packaging-profiles/import`:
 {
   "profiles": [
     {
-      "name": "PVC 300",
+      "name": "Flexible 300",
       "matchType": "sku",
       "matchValue": "FLEX-100",
       "priority": 100,

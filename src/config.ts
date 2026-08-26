@@ -1,4 +1,10 @@
-import { IntegrationGatedError } from './domain.js';
+import { IntegrationGatedError, type CarrierProvider } from './domain.js';
+import {
+  validateControlledShipmentApproval,
+  validateControlledShipmentPreview,
+  type ControlledShipmentApproval,
+  type ControlledShipmentPreview,
+} from './controlled-shipment.js';
 import type { SecretProvider } from './ports.js';
 
 export interface AppConfig {
@@ -10,9 +16,69 @@ export interface AppConfig {
   enableDevRoutes: boolean;
   meliApiBaseUrl: string;
   apiKey?: string;
+  controlledShipmentPreview?: ControlledShipmentPreview;
+  controlledShipmentApproval?: ControlledShipmentApproval;
+}
+
+const carrierProviders = new Set<CarrierProvider>(['mock', 'starken', 'blueexpress', 'chilexpress']);
+
+function allOrNone(raw: Record<string, string | undefined>, label: string): boolean {
+  const values = Object.values(raw);
+  if (values.every((value) => value == null || value === '')) return false;
+  if (values.some((value) => value == null || value === '')) throw new Error(`${label} environment is incomplete`);
+  return true;
+}
+
+function providerFrom(value: string, label: string): CarrierProvider {
+  if (!carrierProviders.has(value as CarrierProvider)) throw new Error(`${label} provider is invalid`);
+  return value as CarrierProvider;
+}
+
+function controlledShipmentPreviewFromEnv(env: NodeJS.ProcessEnv): ControlledShipmentPreview | undefined {
+  const raw = {
+    previewId: env.CONTROLLED_SHIPMENT_PREVIEW_ID,
+    tenantId: env.CONTROLLED_SHIPMENT_PREVIEW_TENANT_ID,
+    provider: env.CONTROLLED_SHIPMENT_PREVIEW_PROVIDER,
+    secretSha256: env.CONTROLLED_SHIPMENT_PREVIEW_SECRET_SHA256,
+    issuedAt: env.CONTROLLED_SHIPMENT_PREVIEW_ISSUED_AT,
+    expiresAt: env.CONTROLLED_SHIPMENT_PREVIEW_EXPIRES_AT,
+  };
+  if (!allOrNone(raw, 'controlled shipment preview')) return undefined;
+  return validateControlledShipmentPreview({
+    previewId: raw.previewId!,
+    tenantId: raw.tenantId!,
+    provider: providerFrom(raw.provider!, 'controlled shipment preview'),
+    secretSha256: raw.secretSha256!,
+    issuedAt: raw.issuedAt!,
+    expiresAt: raw.expiresAt!,
+  });
+}
+
+function controlledShipmentApprovalFromEnv(env: NodeJS.ProcessEnv): ControlledShipmentApproval | undefined {
+  const raw = {
+    approvalId: env.CONTROLLED_SHIPMENT_APPROVAL_ID,
+    tenantId: env.CONTROLLED_SHIPMENT_TENANT_ID,
+    provider: env.CONTROLLED_SHIPMENT_PROVIDER,
+    payloadSha256: env.CONTROLLED_SHIPMENT_PAYLOAD_SHA256,
+    secretSha256: env.CONTROLLED_SHIPMENT_SECRET_SHA256,
+    issuedAt: env.CONTROLLED_SHIPMENT_ISSUED_AT,
+    expiresAt: env.CONTROLLED_SHIPMENT_EXPIRES_AT,
+  };
+  if (!allOrNone(raw, 'controlled shipment approval')) return undefined;
+  return validateControlledShipmentApproval({
+    approvalId: raw.approvalId!,
+    tenantId: raw.tenantId!,
+    provider: providerFrom(raw.provider!, 'controlled shipment approval'),
+    payloadSha256: raw.payloadSha256!,
+    secretSha256: raw.secretSha256!,
+    issuedAt: raw.issuedAt!,
+    expiresAt: raw.expiresAt!,
+  });
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
+  const controlledShipmentPreview = controlledShipmentPreviewFromEnv(env);
+  const controlledShipmentApproval = controlledShipmentApprovalFromEnv(env);
   return {
     host: env.APP_HOST ?? '127.0.0.1',
     port: Number(env.APP_PORT ?? 8787),
@@ -22,6 +88,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     enableDevRoutes: String(env.ENABLE_DEV_ROUTES ?? 'false').toLowerCase() === 'true',
     meliApiBaseUrl: env.MELI_API_BASE_URL ?? 'https://api.mercadolibre.com',
     apiKey: env.APP_API_KEY || undefined,
+    ...(controlledShipmentPreview ? { controlledShipmentPreview } : {}),
+    ...(controlledShipmentApproval ? { controlledShipmentApproval } : {}),
   };
 }
 

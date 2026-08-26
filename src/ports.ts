@@ -89,6 +89,7 @@ export interface Store {
   listTrackingEvents(tenantId: string, shipmentId: string): TrackingEvent[];
 
   getIdempotency(tenantId: string, key: string): IdempotencyRecord | null;
+  claimIdempotency(tenantId: string, key: string, now: string, initialResponse?: Record<string, unknown>): boolean;
   reserveIdempotency(tenantId: string, key: string, now: string): IdempotencyRecord;
   completeIdempotency(
     tenantId: string,
