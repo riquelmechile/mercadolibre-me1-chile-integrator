@@ -230,7 +230,7 @@ export class LogisticsService {
         status: providerResult.status,
         serviceCode: input.serviceCode ?? null,
         idempotencyKey: input.idempotencyKey,
-        metadata: { ...(input.metadata ?? {}), ...(providerResult.metadata ?? {}) },
+        metadata: { ...(input.metadata ?? {}), ...(providerResult.metadata ?? {}), ...(providerResult.labelUrl ? { labelUrl: providerResult.labelUrl } : {}) },
         createdAt: now,
         updatedAt: now,
       };

@@ -1,4 +1,4 @@
-# MVP runtime — v0.8.1
+# MVP runtime — v0.8.2
 
 **Implementation cut:** 25 August 2026.
 
@@ -26,7 +26,7 @@ This repository now includes an executable MVP for the logistics core described 
 
 The MVP deliberately does **not** guess private carrier API contracts.
 
-Starken can run through `starken-plugin-gateway-v1`; v0.8.1 can explicitly synchronize its location catalogs and resolve provider city/commune/agency codes locally from the active versioned snapshot. Blue Express and Chilexpress remain shell-gated until their official contracts are implemented.
+Starken can run through `starken-plugin-gateway-v1`; v0.8.2 can explicitly synchronize its location catalogs and resolve provider city/commune/agency codes locally from the active versioned snapshot. Blue Express and Chilexpress remain shell-gated until their official contracts are implemented.
 
 Secrets must not be placed in repository files or normal database rows. Connections store only a `credentialRef`. The default environment resolver maps for example:
 

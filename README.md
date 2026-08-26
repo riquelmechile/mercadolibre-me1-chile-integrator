@@ -4,7 +4,7 @@ Open research and architecture for a **multi-tenant logistics integration platfo
 
 > Research cut: **25 August 2026 (Chile)**.
 >
-> This repository now includes an **executable v0.8.1 MVP runtime** plus the August 2026 research baseline. It contains no production credentials, no private courier endpoints and no live mutations against Mercado Libre or carriers by default.
+> This repository now includes an **executable v0.8.2 MVP runtime** plus the August 2026 research baseline. It contains no production credentials, no private courier endpoints and no live mutations against Mercado Libre or carriers by default.
 
 ## Why this project exists
 
@@ -149,10 +149,10 @@ The first executable runtime is implemented with **Node.js 24 + TypeScript + Fas
 
 Version **0.2.0** also adds durable packaging profiles (`sku` / `family` / `default`), quantity-aware packing rules, bulk dimension-list import, deterministic carrier selection and `POST /v1/automatic-shipments`, so runtime requests no longer need to send package dimensions.
 
-v0.8.1 also adds a loopback-only controlled observation runtime for reconciling and polling a previously controlled shipment while its carrier remains disabled. See [`docs/CONTROLLED-SHIPMENT-CEREMONY.md`](docs/CONTROLLED-SHIPMENT-CEREMONY.md).
+v0.8.2 also adds a loopback-only controlled observation runtime for reconciling and polling a previously controlled shipment while its carrier remains disabled. See [`docs/CONTROLLED-SHIPMENT-CEREMONY.md`](docs/CONTROLLED-SHIPMENT-CEREMONY.md).
 
 See [`docs/MVP.md`](docs/MVP.md) for local setup, endpoints and the procedure for loading the first official carrier contract.
 
 ## Status
 
-**Research baseline: active. MVP runtime v0.8.1 implements automatic dimension-list shipping, versioned carrier location catalogs, local routing-code resolution, agency-limit enforcement, generic home/agency + payment/value intent, the current official Starken plugin gateway, and a loopback-only controlled first-shipment ceremony that keeps normal carrier automation disabled. Dynamic Freight remains snapshot-first and the ME1 certification gate remains disabled.**
+**Research baseline: active. MVP runtime v0.8.2 implements automatic dimension-list shipping, versioned carrier location catalogs, local routing-code resolution, agency-limit enforcement, generic home/agency + payment/value intent, the current official Starken plugin gateway, and a loopback-only controlled first-shipment ceremony that keeps normal carrier automation disabled. Dynamic Freight remains snapshot-first and the ME1 certification gate remains disabled.**

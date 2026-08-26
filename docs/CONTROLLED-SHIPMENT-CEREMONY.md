@@ -1,6 +1,6 @@
 # Controlled shipment ceremony
 
-Core v0.8.1 provides a provider-neutral controlled lifecycle for previewing, creating, reconciling and observing one shipment while the normal carrier connection remains disabled.
+Core v0.8.2 provides a provider-neutral controlled lifecycle for previewing, creating, reconciling and observing one shipment while the normal carrier connection remains disabled.
 
 This exists for first-production ceremonies and similarly sensitive migrations. It is not an alternative automation API.
 

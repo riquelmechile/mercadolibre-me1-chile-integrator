@@ -78,6 +78,7 @@ class ControlledTestAdapter implements CourierAdapter {
       providerShipmentRef: `controlled-${input.externalOrderId}`,
       trackingNumber: 'OF-CONTROLLED-1',
       status: 'label_ready',
+      labelUrl: 'https://example.invalid/create-label',
       metadata: { fixture: true },
     };
   }
@@ -280,6 +281,7 @@ test('controlled shipment requires exact approved payload and keeps carrier disa
   assert.equal(adapter.createCalls, 1);
   assert.equal(adapter.lastConnection?.id, connection.id);
   assert.equal(adapter.lastConnection?.enabled, false);
+  assert.equal(created.json().metadata.labelUrl, 'https://example.invalid/create-label', 'provider label URL must be durably preserved in shipment metadata');
 
   const again = await app.inject({ method: 'POST', url: '/v1/controlled-shipments', headers: approvalHeader(secret), payload: shipment });
   assert.equal(again.statusCode, 201, again.body);

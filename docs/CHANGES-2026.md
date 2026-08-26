@@ -1,3 +1,9 @@
+# 26 August 2026 — v0.8.2 preserve provider label evidence
+
+Provider `labelUrl` returned during shipment creation is now persisted into shipment metadata before the response is returned. This prevents a controlled first-shipment ceremony from losing a label that is available only in the create response and keeps later observation/reconciliation consistent.
+
+---
+
 # 26 August 2026 — v0.8.1 controlled shipment observation
 
 Adds a third loopback-only controlled runtime for one existing shipment: short-lived tenant/provider/shipment-scoped reconciliation and tracking while the carrier remains disabled. Starken reconciliation reads issuance state via the official consultation GET, persists discovered OF/label metadata, and tracking events remain deduplicated and monotonic. Preview, approval and observation modes are mutually exclusive and lock unrelated mutations.
