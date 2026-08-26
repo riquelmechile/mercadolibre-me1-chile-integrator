@@ -278,5 +278,8 @@ test('official Starken tracking event identity is stable when provider history o
     const a = await adapter.tracking!(shipment, conn);
     const b = await adapter.tracking!(shipment, conn);
     assert.deepEqual(a.map((e) => e.providerEventId).sort(), b.map((e) => e.providerEventId).sort());
+    assert.deepEqual(a.map((e) => e.canonicalStatus), ['in_transit', 'delivered']);
+    assert.deepEqual(b.map((e) => e.canonicalStatus), ['in_transit', 'delivered']);
+    assert.deepEqual(a.map((e) => e.occurredAt), b.map((e) => e.occurredAt));
   });
 });

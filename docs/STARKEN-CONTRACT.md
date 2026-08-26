@@ -150,7 +150,7 @@ A returned label URL promotes the canonical result to `label_ready`; otherwise t
 
 The current tracking endpoint is keyed by Freight Order and exposes a current status plus `history[]` entries containing provider status, note and timestamps.
 
-Every provider status must be present in private/tenant `trackingStatusMap` before it can become a canonical status. Unknown statuses fail closed. Event IDs are deterministically derived from provider data so repeated polling deduplicates correctly.
+Every provider status must be present in private/tenant `trackingStatusMap` before it can become a canonical status. Unknown statuses fail closed. Event IDs are deterministically derived from provider data so repeated polling deduplicates correctly. Starting with v0.7.1, normalized tracking events are also sorted deterministically by provider occurrence time before ingestion, so provider history array order cannot cause a terminal-state regression; equal timestamps use the stable provider event ID as a tie-break.
 
 ## Catalog facts
 

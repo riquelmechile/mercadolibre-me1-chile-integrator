@@ -368,7 +368,7 @@ export class OfficialStarkenPluginAdapter implements CourierAdapter {
         comment: note,
         final: FINAL_SHIPMENT_STATUSES.has(canonicalStatus),
       };
-    });
+    }).sort((a, b) => Date.parse(a.occurredAt) - Date.parse(b.occurredAt) || a.providerEventId.localeCompare(b.providerEventId));
   }
 
   private async request(connection: CarrierConnection, path: string, method: 'GET' | 'POST', body?: JsonRecord): Promise<unknown> {
