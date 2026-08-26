@@ -50,6 +50,7 @@ function officialConnection(baseUrl: string): CarrierConnection {
       capabilities: ['quote', 'create_shipment', 'tracking'],
       testBaseUrl: baseUrl,
       originAgencyCode: '1001',
+      allowedOriginAgencyCodes: ['1001'],
       trackingStatusMap: {
         'EN TRANSITO': 'in_transit',
         ENTREGADO: 'delivered',
@@ -255,6 +256,27 @@ test('official Starken protocol rejects an invalid empty origin allowlist before
       idempotencyKey: 'invalid-allowlist',
     }, conn),
     (error: unknown) => error instanceof IntegrationGatedError && /non-empty array/i.test(error.message),
+  );
+  assert.equal(secrets.calls, 0);
+});
+
+test('official Starken protocol rejects a missing origin allowlist before secret/network', async () => {
+  const secrets = new CountingSecretProvider();
+  const adapter = new StarkenAdapter(secrets);
+  const conn = officialConnection('http://127.0.0.1:9');
+  delete conn.config.allowedOriginAgencyCodes;
+  await assert.rejects(
+    () => adapter.createShipment({
+      tenantId: 'tenant-example', provider: 'starken', externalOrderId: 'ORDER-MISSING-ALLOWLIST',
+      origin, destination, package: packageSpec, serviceCode: 'NORMAL',
+      deliveryMode: 'agency', paymentMode: 'recipient_pay', declaredValueClp: 40000,
+      recipient: {
+        taxId: '11111111-1', firstName: 'Ada', lastName: 'Lovelace',
+        phone: '+56911111111', email: 'ada@example.invalid', contactName: 'Ada Lovelace',
+      },
+      idempotencyKey: 'missing-allowlist',
+    }, conn),
+    (error: unknown) => error instanceof IntegrationGatedError && /allowedOriginAgencyCodes.*required/i.test(error.message),
   );
   assert.equal(secrets.calls, 0);
 });

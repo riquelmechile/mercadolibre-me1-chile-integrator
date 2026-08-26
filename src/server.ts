@@ -251,7 +251,7 @@ export function buildServer(options: BuildServerOptions): FastifyInstance {
   app.get('/healthz', async () => ({
     ok: true,
     service: 'mercadolibre-me1-chile-integrator',
-    version: '0.7.2',
+    version: '0.7.3',
     providers: adapters.providers(),
   }));
 

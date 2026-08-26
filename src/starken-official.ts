@@ -59,9 +59,9 @@ function optionalConfigString(connection: CarrierConnection, key: string): strin
   return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 }
 
-function allowedOriginAgencyCodes(connection: CarrierConnection): Set<string> | null {
+function allowedOriginAgencyCodes(connection: CarrierConnection): Set<string> {
   const raw = connection.config.allowedOriginAgencyCodes;
-  if (raw == null) return null;
+  if (raw == null) throw gated('Starken allowedOriginAgencyCodes is required before shipment creation');
   if (!Array.isArray(raw) || raw.length === 0) {
     throw gated('Starken allowedOriginAgencyCodes must be a non-empty array');
   }
@@ -79,7 +79,7 @@ function allowedOriginAgencyCodes(connection: CarrierConnection): Set<string> | 
 
 function requireAllowedOriginAgency(connection: CarrierConnection, originAgency: string): void {
   const allowed = allowedOriginAgencyCodes(connection);
-  if (allowed && !allowed.has(originAgency)) {
+  if (!allowed.has(originAgency)) {
     throw gated('Starken origin agency is not allowlisted for this connection', { originAgency });
   }
 }

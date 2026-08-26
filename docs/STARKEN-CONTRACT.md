@@ -65,7 +65,7 @@ Use the official protocol explicitly:
 
 `trackingStatusMap` deliberately starts empty. Provider tracking states are never guessed. A tenant must install an explicitly verified map before tracking is activated.
 
-For production shipment creation, `allowedOriginAgencyCodes` is the tenant safety boundary for dispatch origins. When present it must be a non-empty array of provider agency codes. The effective origin must be in that set or the adapter fails **before secret resolution and before network I/O**. Omitting the field preserves backward compatibility but does not provide origin-allowlist protection.
+For production shipment creation, `allowedOriginAgencyCodes` is a mandatory tenant safety boundary for dispatch origins. It must be a non-empty array of provider agency codes. If the field is missing, empty, malformed, or the effective origin is outside the set, the adapter fails **before secret resolution and before network I/O**.
 
 The optional `serviceCodeMap` can add DLS mappings discovered through an authorized current contract. The only built-in service mapping currently treated as verified is `NORMAL -> 0`; unknown service codes fail closed.
 

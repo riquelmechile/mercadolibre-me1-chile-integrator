@@ -1,3 +1,9 @@
+# 26 August 2026 — v0.7.3 Starken origin allowlist hard gate
+
+Starken shipment creation now requires `allowedOriginAgencyCodes` to be present and non-empty. Missing, malformed, empty, or non-matching origin policy fails before secret resolution and before network I/O. This closes the fail-open path found during a private pilot high-risk review.
+
+---
+
 # Critical changes and deadlines — 2026
 
 **Research cut:** 25 August 2026
