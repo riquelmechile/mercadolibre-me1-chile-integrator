@@ -49,7 +49,7 @@ function officialConnection(baseUrl: string): CarrierConnection {
       protocol: 'starken-plugin-gateway-v1',
       capabilities: ['quote', 'create_shipment', 'tracking'],
       testBaseUrl: baseUrl,
-      originAgencyCode: '1411',
+      originAgencyCode: '1001',
       trackingStatusMap: {
         'EN TRANSITO': 'in_transit',
         ENTREGADO: 'delivered',
@@ -64,7 +64,7 @@ const origin = {
   commune: 'Santiago',
   providerCityCode: '1',
   providerCommuneCode: '3126',
-  providerAgencyCode: '1411',
+  providerAgencyCode: '1001',
   street: 'Origen',
   number: '100',
 };
@@ -145,7 +145,7 @@ test('official Starken protocol creates an agency shipment from normalized recip
     assert.equal(req.method, 'POST');
     assert.equal(req.headers.authorization, 'Bearer fixture-token');
     assert.deepEqual(body, {
-      codigo_agencia_origen: '1411',
+      codigo_agencia_origen: '1001',
       codigo_agencia_destino: '2001',
       destinatario_rut: '11111111-1',
       destinatario_nombres: 'Ada',
@@ -169,6 +169,8 @@ test('official Starken protocol creates an agency shipment from normalized recip
     res.end(JSON.stringify({ id: 123, orden_flete: 456, etiqueta: 'https://labels.example.invalid/456.pdf', estado: 'CREADA' }));
   }, async (baseUrl) => {
     const adapter = new StarkenAdapter(new CountingSecretProvider());
+    const conn = officialConnection(baseUrl);
+    conn.config.allowedOriginAgencyCodes = ['1001', '1002'];
     const result = await adapter.createShipment({
       tenantId: 'tenant-example', provider: 'starken', externalOrderId: 'ORDER-42',
       origin, destination, package: packageSpec, serviceCode: 'NORMAL',
@@ -178,7 +180,7 @@ test('official Starken protocol creates an agency shipment from normalized recip
         phone: '+56911111111', email: 'ada@example.invalid', contactName: 'Ada Lovelace',
       },
       idempotencyKey: 'order-42',
-    }, officialConnection(baseUrl));
+    }, conn);
     assert.equal(result.providerShipmentRef, '123');
     assert.equal(result.trackingNumber, '456');
     assert.equal(result.status, 'label_ready');
@@ -213,6 +215,48 @@ test('official Starken tracking maps history only through explicit configured st
     assert.equal(events[1]?.final, true);
     assert.match(events[0]?.providerEventId ?? '', /^starken:/);
   });
+});
+
+test('official Starken protocol rejects an origin agency outside the configured allowlist before secret/network', async () => {
+  const secrets = new CountingSecretProvider();
+  const adapter = new StarkenAdapter(secrets);
+  const conn = officialConnection('http://127.0.0.1:9');
+  conn.config.allowedOriginAgencyCodes = ['1001', '1002'];
+  await assert.rejects(
+    () => adapter.createShipment({
+      tenantId: 'tenant-example', provider: 'starken', externalOrderId: 'ORDER-BLOCKED',
+      origin: { ...origin, providerAgencyCode: '9009' }, destination, package: packageSpec, serviceCode: 'NORMAL',
+      deliveryMode: 'agency', paymentMode: 'recipient_pay', declaredValueClp: 40000,
+      recipient: {
+        taxId: '11111111-1', firstName: 'Ada', lastName: 'Lovelace',
+        phone: '+56911111111', email: 'ada@example.invalid', contactName: 'Ada Lovelace',
+      },
+      idempotencyKey: 'blocked-origin',
+    }, conn),
+    (error: unknown) => error instanceof IntegrationGatedError && /origin agency.*allow/i.test(error.message),
+  );
+  assert.equal(secrets.calls, 0);
+});
+
+test('official Starken protocol rejects an invalid empty origin allowlist before secret/network', async () => {
+  const secrets = new CountingSecretProvider();
+  const adapter = new StarkenAdapter(secrets);
+  const conn = officialConnection('http://127.0.0.1:9');
+  conn.config.allowedOriginAgencyCodes = [];
+  await assert.rejects(
+    () => adapter.createShipment({
+      tenantId: 'tenant-example', provider: 'starken', externalOrderId: 'ORDER-INVALID-ALLOWLIST',
+      origin, destination, package: packageSpec, serviceCode: 'NORMAL',
+      deliveryMode: 'agency', paymentMode: 'recipient_pay', declaredValueClp: 40000,
+      recipient: {
+        taxId: '11111111-1', firstName: 'Ada', lastName: 'Lovelace',
+        phone: '+56911111111', email: 'ada@example.invalid', contactName: 'Ada Lovelace',
+      },
+      idempotencyKey: 'invalid-allowlist',
+    }, conn),
+    (error: unknown) => error instanceof IntegrationGatedError && /non-empty array/i.test(error.message),
+  );
+  assert.equal(secrets.calls, 0);
 });
 
 test('official Starken protocol fails before secret/network when routing or recipient data is incomplete', async () => {

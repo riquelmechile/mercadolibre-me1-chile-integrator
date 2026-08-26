@@ -57,12 +57,15 @@ Use the official protocol explicitly:
     "protocol": "starken-plugin-gateway-v1",
     "capabilities": ["quote", "create_shipment", "tracking"],
     "originAgencyCode": "REPLACE_WITH_TENANT_DLS_CODE",
+    "allowedOriginAgencyCodes": ["1001", "1002"],
     "trackingStatusMap": {}
   }
 }
 ```
 
 `trackingStatusMap` deliberately starts empty. Provider tracking states are never guessed. A tenant must install an explicitly verified map before tracking is activated.
+
+For production shipment creation, `allowedOriginAgencyCodes` is the tenant safety boundary for dispatch origins. When present it must be a non-empty array of provider agency codes. The effective origin must be in that set or the adapter fails **before secret resolution and before network I/O**. Omitting the field preserves backward compatibility but does not provide origin-allowlist protection.
 
 The optional `serviceCodeMap` can add DLS mappings discovered through an authorized current contract. The only built-in service mapping currently treated as verified is `NORMAL -> 0`; unknown service codes fail closed.
 

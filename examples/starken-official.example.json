@@ -5,6 +5,7 @@
     "protocol": "starken-plugin-gateway-v1",
     "capabilities": ["quote", "create_shipment"],
     "originAgencyCode": "1001",
+    "allowedOriginAgencyCodes": ["1001", "1002"],
     "trackingStatusMap": {}
   },
   "exampleQuoteInput": {

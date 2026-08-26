@@ -59,6 +59,31 @@ function optionalConfigString(connection: CarrierConnection, key: string): strin
   return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 }
 
+function allowedOriginAgencyCodes(connection: CarrierConnection): Set<string> | null {
+  const raw = connection.config.allowedOriginAgencyCodes;
+  if (raw == null) return null;
+  if (!Array.isArray(raw) || raw.length === 0) {
+    throw gated('Starken allowedOriginAgencyCodes must be a non-empty array');
+  }
+  const result = new Set<string>();
+  for (const entry of raw) {
+    if (typeof entry !== 'string' && typeof entry !== 'number') {
+      throw gated('Starken allowedOriginAgencyCodes entries must be scalar provider codes');
+    }
+    const code = String(entry).trim();
+    if (!code) throw gated('Starken allowedOriginAgencyCodes contains an empty provider code');
+    result.add(code);
+  }
+  return result;
+}
+
+function requireAllowedOriginAgency(connection: CarrierConnection, originAgency: string): void {
+  const allowed = allowedOriginAgencyCodes(connection);
+  if (allowed && !allowed.has(originAgency)) {
+    throw gated('Starken origin agency is not allowlisted for this connection', { originAgency });
+  }
+}
+
 function isLoopback(hostname: string): boolean {
   const host = hostname.toLowerCase();
   return host === '127.0.0.1' || host === 'localhost' || host === '::1' || host.endsWith('.localhost');
@@ -252,6 +277,7 @@ export class OfficialStarkenPluginAdapter implements CourierAdapter {
       throw gated('Starken shipment requires a non-negative declaredValueClp before network access');
     }
     const originAgency = requiredAddress(input.origin.providerAgencyCode ?? optionalConfigString(connection, 'originAgencyCode'), 'origin provider agency code');
+    requireAllowedOriginAgency(connection, originAgency);
     const destinationCommune = positiveProviderCode(input.destination.providerCommuneCode, 'destination.providerCommuneCode');
     const destinationAgency = input.deliveryMode === 'agency'
       ? requiredAddress(input.destination.providerAgencyCode, 'destination.providerAgencyCode')
