@@ -38,6 +38,11 @@ export interface CourierAdapter {
 export interface MarketplaceAdapter {
   readonly provider: 'mercadolibre';
   fetchOrder(connection: SellerConnection, orderId: string): Promise<Record<string, unknown>>;
+  fetchSellerShippingPreferences(connection: SellerConnection): Promise<Record<string, unknown>>;
+  fetchCategoryShippingPreferences(connection: SellerConnection, categoryId: string): Promise<Record<string, unknown>>;
+  fetchItem(connection: SellerConnection, itemId: string): Promise<Record<string, unknown>>;
+  fetchItemShippingModes(connection: SellerConnection, payload: Record<string, unknown>): Promise<Record<string, unknown>>;
+  fetchItemShippingOptions(connection: SellerConnection, itemId: string, zipCode: string): Promise<Record<string, unknown>>;
   publishCustomTracking(
     connection: SellerConnection,
     shipmentId: string,

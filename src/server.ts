@@ -24,9 +24,10 @@ import {
   type TrackingEventInput,
 } from './domain.js';
 import { LogisticsService } from './services.js';
+import { MercadoLibreSellerShippingService } from './meli-seller-shipping.js';
 import { AutomaticShippingService, PackagingResolver } from './packaging.js';
 import { CarrierRoutingResolver, StarkenCatalogSyncService } from './starken-catalog.js';
-import type { SecretProvider, Store } from './ports.js';
+import type { MarketplaceAdapter, SecretProvider, Store } from './ports.js';
 
 const providers = new Set<CarrierProvider>(['mock', 'starken', 'blueexpress', 'chilexpress']);
 const packagingMatchTypes = new Set<PackagingMatchType>(['sku', 'family', 'default']);
@@ -255,10 +256,11 @@ export interface BuildServerOptions {
   adapters: AdapterRegistry;
   config: AppConfig;
   secrets?: SecretProvider;
+  marketplace?: MarketplaceAdapter;
 }
 
 export function buildServer(options: BuildServerOptions): FastifyInstance {
-  const { store, adapters, config, secrets } = options;
+  const { store, adapters, config, secrets, marketplace } = options;
   const loopbackHosts = new Set(['127.0.0.1', 'localhost', '::1']);
   if (!loopbackHosts.has(config.host) && !config.apiKey) {
     throw new Error('APP_API_KEY is required when binding outside loopback');
@@ -286,6 +288,7 @@ export function buildServer(options: BuildServerOptions): FastifyInstance {
   const routing = new CarrierRoutingResolver(store);
   const automaticShipping = new AutomaticShippingService(store, logistics, packaging, routing);
   const starkenCatalogSync = secrets ? new StarkenCatalogSyncService(store, secrets) : null;
+  const sellerShipping = marketplace ? new MercadoLibreSellerShippingService(store, marketplace) : null;
   const app = Fastify({
     logger: { level: config.logLevel, redact: ['req.headers.authorization', 'req.headers.x-controlled-shipment-approval', 'req.headers.x-controlled-shipment-preview', 'req.headers.x-controlled-shipment-observation', '*.token', '*.secret', '*.password'] },
     genReqId: (request) => String(request.headers['x-correlation-id'] ?? newId()),
@@ -336,7 +339,7 @@ export function buildServer(options: BuildServerOptions): FastifyInstance {
   app.get('/healthz', async () => ({
     ok: true,
     service: 'mercadolibre-me1-chile-integrator',
-    version: '0.8.2',
+    version: '0.9.0',
     providers: adapters.providers(),
   }));
 
@@ -461,6 +464,67 @@ export function buildServer(options: BuildServerOptions): FastifyInstance {
     const { tenantId } = request.params as { tenantId: string };
     if (!store.getTenant(tenantId)) throw new NotFoundError('Tenant not found', { tenantId });
     return store.listSellerConnections(tenantId);
+  });
+
+  app.get('/v1/tenants/:tenantId/sellers/:sellerId/shipping/capabilities', async (request) => {
+    if (!sellerShipping) throw new AppError('integration_gated', 'Mercado Libre marketplace adapter is not configured', 503);
+    const { tenantId, sellerId } = request.params as { tenantId: string; sellerId: string };
+    const query = request.query as Record<string, unknown>;
+    const categoryId = typeof query.categoryId === 'string' ? query.categoryId.trim() : '';
+    const itemId = typeof query.itemId === 'string' && query.itemId.trim() ? query.itemId.trim() : undefined;
+    if (!categoryId) throw new AppError('invalid_request', 'categoryId query parameter is required', 400);
+    return sellerShipping.discover({ tenantId, sellerId, categoryId, ...(itemId ? { itemId } : {}) });
+  });
+
+  app.get('/v1/tenants/:tenantId/sellers/:sellerId/shipping/item-options', async (request) => {
+    if (!sellerShipping) throw new AppError('integration_gated', 'Mercado Libre marketplace adapter is not configured', 503);
+    const { tenantId, sellerId } = request.params as { tenantId: string; sellerId: string };
+    const query = request.query as Record<string, unknown>;
+    const itemId = typeof query.itemId === 'string' ? query.itemId.trim() : '';
+    const zipCode = typeof query.zipCode === 'string' ? query.zipCode.trim() : '';
+    if (!itemId || !zipCode) throw new AppError('invalid_request', 'itemId and zipCode query parameters are required', 400);
+    return sellerShipping.itemShippingOptions(tenantId, sellerId, itemId, zipCode);
+  });
+
+  app.post('/v1/tenants/:tenantId/sellers/:sellerId/shipping/custom/item-plan', async (request) => {
+    if (!sellerShipping) throw new AppError('integration_gated', 'Mercado Libre marketplace adapter is not configured', 503);
+    const { tenantId, sellerId } = request.params as { tenantId: string; sellerId: string };
+    const body = objectBody(request);
+    const rawCosts = body.costs;
+    if (!Array.isArray(rawCosts) || rawCosts.length === 0) throw new AppError('invalid_request', 'costs must be a non-empty array', 400);
+    const costs = rawCosts.map((entry, index) => {
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) throw new AppError('invalid_request', `costs[${index}] must be an object`, 400);
+      const record = entry as Record<string, unknown>;
+      const description = typeof record.description === 'string' ? record.description.trim() : '';
+      const cost = record.cost;
+      if (!description || typeof cost !== 'number' || !Number.isFinite(cost) || cost < 0) {
+        throw new AppError('invalid_request', `costs[${index}] must contain description and non-negative numeric cost`, 400);
+      }
+      return { description, cost };
+    });
+    return sellerShipping.customItemPlan({
+      tenantId,
+      sellerId,
+      categoryId: requiredString(body, 'categoryId'),
+      itemId: requiredString(body, 'itemId'),
+      costs,
+    });
+  });
+
+  app.post('/v1/tenants/:tenantId/sellers/:sellerId/shipping/custom/shipment-update-plan', async (request) => {
+    if (!sellerShipping) throw new AppError('integration_gated', 'Mercado Libre marketplace adapter is not configured', 503);
+    const { tenantId, sellerId } = request.params as { tenantId: string; sellerId: string };
+    const body = objectBody(request);
+    const status = requiredString(body, 'status');
+    if (!['shipped', 'delivered', 'cancelled'].includes(status)) throw new AppError('invalid_request', 'status must be shipped, delivered or cancelled', 400);
+    return sellerShipping.customShipmentUpdatePlan(tenantId, sellerId, {
+      shipmentId: requiredString(body, 'shipmentId'),
+      status: status as 'shipped' | 'delivered' | 'cancelled',
+      receiverId: requiredString(body, 'receiverId'),
+      ...(typeof body.trackingNumber === 'string' ? { trackingNumber: body.trackingNumber } : {}),
+      ...(typeof body.speedHours === 'number' ? { speedHours: body.speedHours } : {}),
+      ...(typeof body.comments === 'string' ? { comments: body.comments } : {}),
+    });
   });
 
   app.post('/v1/tenants/:tenantId/packaging-profiles', async (request, reply) => {

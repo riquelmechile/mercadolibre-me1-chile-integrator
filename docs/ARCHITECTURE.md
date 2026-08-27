@@ -12,7 +12,7 @@ Primary product paths:
 2. **ME1 Dynamic Freight** after certification/homologation.
 3. Optional future **Mercado Libre Flex courier** integration.
 
-## Current runtime boundary — v0.8.2
+## Current runtime boundary — v0.9.0
 
 The executable core already implements the reusable control-plane foundation: tenant/carrier connections, secret references, packaging profiles, versioned tariff and location snapshots, local routing, snapshot-first quotes, atomic shipment idempotency, audit events, tracking normalization and a current official Starken adapter.
 
@@ -24,7 +24,7 @@ preview-only → explicit exact-payload approval/create → observation-only
 
 The observation path can reconcile a provider issuance to a freight order, preserve label evidence and ingest deduplicated/monotonic tracking while the carrier remains disabled. Blue Express and Chilexpress remain contract-gated shells. ME1 Dynamic Freight publication remains certification-gated.
 
-The rest of this document describes both this implemented foundation and the architecture it grows into; future-only components are not implied to exist in v0.8.2.
+The rest of this document describes both this implemented foundation and the architecture it grows into; future-only components are not implied to exist in v0.9.0.
 
 ## Core principles
 
@@ -411,7 +411,7 @@ Do not dump raw payloads containing PII into permanent audit logs. Store only th
 
 ## Current implementation boundary and next milestones
 
-### Implemented in v0.8.2
+### Implemented in v0.9.0
 
 - tenant and seller/carrier connection skeletons with credential references;
 - packaging profiles and deterministic package resolution;
@@ -421,6 +421,7 @@ Do not dump raw payloads containing PII into permanent audit logs. Store only th
 - atomic, fingerprinted shipment idempotency;
 - canonical tracking persistence, dedupe and monotonic final states;
 - official Starken plugin-gateway quote/create/tracking integration;
+- Mercado Libre seller/category/item shipping capability discovery plus dry-run seller-owned Custom Shipping planning;
 - controlled preview, exact-payload create and shipment-scoped observation while the carrier remains disabled;
 - audit foundations and public/private configuration boundaries.
 

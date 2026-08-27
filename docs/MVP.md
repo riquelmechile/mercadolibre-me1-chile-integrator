@@ -1,4 +1,4 @@
-# MVP runtime — v0.8.2
+# MVP runtime — v0.9.0
 
 **Implementation cut:** 26 August 2026.
 
@@ -26,7 +26,7 @@ This repository now includes an executable MVP for the logistics core described 
 
 The MVP deliberately does **not** guess private carrier API contracts.
 
-Starken can run through `starken-plugin-gateway-v1`; v0.8.2 can explicitly synchronize its location catalogs and resolve provider city/commune/agency codes locally from the active versioned snapshot. Blue Express and Chilexpress remain shell-gated until their official contracts are implemented.
+Starken can run through `starken-plugin-gateway-v1`; the current runtime can explicitly synchronize its location catalogs and resolve provider city/commune/agency codes locally from the active versioned snapshot. Blue Express and Chilexpress remain shell-gated until their official contracts are implemented.
 
 Secrets must not be placed in repository files or normal database rows. Connections store only a `credentialRef`. The default environment resolver maps for example:
 
@@ -151,6 +151,10 @@ Submitting the same idempotency key again returns the original shipment instead 
 | GET | `/v1/tenants/:tenantId/carriers` | list courier connections |
 | POST | `/v1/tenants/:tenantId/sellers` | connect Mercado Libre seller by credential ref |
 | GET | `/v1/tenants/:tenantId/sellers` | list seller connections |
+| GET | `/v1/tenants/:tenantId/sellers/:sellerId/shipping/capabilities` | read seller/category/item shipping eligibility; reports Custom vs existing ME1 boundary |
+| GET | `/v1/tenants/:tenantId/sellers/:sellerId/shipping/item-options` | read current Mercado Libre item shipping options for a postal code |
+| POST | `/v1/tenants/:tenantId/sellers/:sellerId/shipping/custom/item-plan` | dry-run Custom Shipping item payload; never writes Mercado Libre |
+| POST | `/v1/tenants/:tenantId/sellers/:sellerId/shipping/custom/shipment-update-plan` | dry-run Custom shipment state/tracking payload; never writes Mercado Libre |
 | POST | `/v1/tenants/:tenantId/tariff-snapshots` | publish/version tariff rules |
 | POST | `/v1/quotes` | deterministic snapshot-first quote |
 | POST | `/v1/shipments` | idempotent provider shipment create |
@@ -163,7 +167,7 @@ Submitting the same idempotency key again returns the original shipment instead 
 | GET | `/v1/tenants/:tenantId/shipments/:shipmentId/tracking-events` | list tracking history |
 | GET | `/v1/tenants/:tenantId/audit` | tenant audit trail |
 
-See `CONTROLLED-SHIPMENT-CEREMONY.md` for the three-mode controlled lifecycle: preview → explicit approval/create → short-lived reconciliation/tracking observation sessions.
+See `SELLER-OWNED-CUSTOM-SHIPPING.md` for the seller-owned Custom path and its ME1 certification boundary. See `CONTROLLED-SHIPMENT-CEREMONY.md` for the three-mode controlled carrier lifecycle: preview → explicit approval/create → short-lived reconciliation/tracking observation sessions.
 
 ## Adding an official carrier contract
 

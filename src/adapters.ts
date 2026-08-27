@@ -167,15 +167,60 @@ export class MercadoLibreAdapter implements MarketplaceAdapter {
   ) {}
 
   async fetchOrder(connection: SellerConnection, orderId: string): Promise<Record<string, unknown>> {
-    const token = await this.secrets.resolve(connection.credentialRef);
-    const response = await fetch(`${this.apiBaseUrl}/orders/${encodeURIComponent(orderId)}`, {
-      headers: { Authorization: `Bearer ${token}` },
-      signal: AbortSignal.timeout(10_000),
-    });
-    if (!response.ok) {
-      throw new IntegrationGatedError('Mercado Libre order request failed', { status: response.status });
-    }
-    return (await response.json()) as Record<string, unknown>;
+    return this.authorizedGet(connection, `/orders/${encodeURIComponent(orderId)}`, 'Mercado Libre order request failed');
+  }
+
+  async fetchSellerShippingPreferences(connection: SellerConnection): Promise<Record<string, unknown>> {
+    return this.authorizedGet(
+      connection,
+      `/users/${encodeURIComponent(connection.sellerId)}/shipping_preferences`,
+      'Mercado Libre seller shipping preferences request failed',
+    );
+  }
+
+  async fetchCategoryShippingPreferences(
+    connection: SellerConnection,
+    categoryId: string,
+  ): Promise<Record<string, unknown>> {
+    return this.authorizedGet(
+      connection,
+      `/categories/${encodeURIComponent(categoryId)}/shipping_preferences`,
+      'Mercado Libre category shipping preferences request failed',
+    );
+  }
+
+  async fetchItem(connection: SellerConnection, itemId: string): Promise<Record<string, unknown>> {
+    return this.authorizedGet(
+      connection,
+      `/items/${encodeURIComponent(itemId)}`,
+      'Mercado Libre item request failed',
+    );
+  }
+
+  async fetchItemShippingModes(
+    connection: SellerConnection,
+    payload: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    return this.authorizedJsonReadRequest(
+      connection,
+      `/users/${encodeURIComponent(connection.sellerId)}/shipping_modes`,
+      payload,
+      'Mercado Libre item shipping-modes probe failed',
+      { 'x-multichannel': 'true', 'X-Format-New': 'true' },
+    );
+  }
+
+  async fetchItemShippingOptions(
+    connection: SellerConnection,
+    itemId: string,
+    zipCode: string,
+  ): Promise<Record<string, unknown>> {
+    const query = new URLSearchParams({ zip_code: zipCode }).toString();
+    return this.authorizedGet(
+      connection,
+      `/items/${encodeURIComponent(itemId)}/shipping_options?${query}`,
+      'Mercado Libre item shipping options request failed',
+    );
   }
 
   async publishCustomTracking(
@@ -183,15 +228,12 @@ export class MercadoLibreAdapter implements MarketplaceAdapter {
     shipmentId: string,
     payload: Record<string, unknown>,
   ): Promise<void> {
-    const template = connection.config.customShipmentPathTemplate;
-    if (typeof template !== 'string' || !template.includes('{shipmentId}')) {
-      throw new IntegrationGatedError(
-        'Custom shipment write is gated until the verified account contract/path template is configured',
-      );
+    if (connection.config.customShippingWritesEnabled !== true) {
+      throw new IntegrationGatedError('Mercado Libre Custom Shipping writes are disabled for this seller connection');
     }
     await this.authorizedJsonRequest(
       connection,
-      template.replace('{shipmentId}', encodeURIComponent(shipmentId)),
+      `/shipments/${encodeURIComponent(shipmentId)}`,
       'PUT',
       payload,
     );
@@ -211,6 +253,48 @@ export class MercadoLibreAdapter implements MarketplaceAdapter {
       'POST',
       payload,
     );
+  }
+
+  private async authorizedGet(
+    connection: SellerConnection,
+    path: string,
+    failureMessage: string,
+  ): Promise<Record<string, unknown>> {
+    const token = await this.secrets.resolve(connection.credentialRef);
+    const response = await fetch(`${this.apiBaseUrl}${path}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!response.ok) {
+      throw new IntegrationGatedError(failureMessage, { status: response.status });
+    }
+    const body = await response.json();
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      throw new IntegrationGatedError('Mercado Libre response must be a JSON object');
+    }
+    return body as Record<string, unknown>;
+  }
+
+  private async authorizedJsonReadRequest(
+    connection: SellerConnection,
+    path: string,
+    payload: Record<string, unknown>,
+    failureMessage: string,
+    extraHeaders: Record<string, string> = {},
+  ): Promise<Record<string, unknown>> {
+    const token = await this.secrets.resolve(connection.credentialRef);
+    const response = await fetch(`${this.apiBaseUrl}${path}`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'content-type': 'application/json', ...extraHeaders },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!response.ok) throw new IntegrationGatedError(failureMessage, { status: response.status });
+    const body = await response.json();
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      throw new IntegrationGatedError('Mercado Libre response must be a JSON object');
+    }
+    return body as Record<string, unknown>;
   }
 
   private async authorizedJsonRequest(

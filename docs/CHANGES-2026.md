@@ -1,3 +1,7 @@
+# 26 August 2026 — v0.9.0 seller-owned Custom Shipping planner
+
+Adds read-only Mercado Libre seller/category/item shipping capability discovery and deterministic dry-run Custom Shipping plans. The runtime now distinguishes seller-owned `custom` from existing `me1` and records that Dynamic Freight activation/homologation requires a certified integrator. Existing low-level Custom writes require an explicit `customShippingWritesEnabled=true` seller gate and fail before token/network when disabled. No live item-shipping execution route is exposed.
+
 # 26 August 2026 — v0.8.2 preserve provider label evidence
 
 Provider `labelUrl` returned during shipment creation is now persisted into shipment metadata before the response is returned. This prevents a controlled first-shipment ceremony from losing a label that is available only in the create response and keeps later observation/reconciliation consistent.

@@ -5,8 +5,8 @@
 Build and validate multi-carrier Custom Shipping flows today, while keeping the quote, shipment, tracking and safety architecture ready for a future certified **Mercado Envíos 1 (ME1) / Dynamic Freight** integration.
 
 <p>
-  <img alt="Runtime v0.8.2" src="https://img.shields.io/badge/runtime-v0.8.2-2563eb">
-  <img alt="63 tests passing" src="https://img.shields.io/badge/tests-63%2F63%20passing-16a34a">
+  <img alt="Runtime v0.9.0" src="https://img.shields.io/badge/runtime-v0.9.0-2563eb">
+  <img alt="74 tests passing" src="https://img.shields.io/badge/tests-74%2F74%20passing-16a34a">
   <img alt="Node.js 24 or newer" src="https://img.shields.io/badge/node-%E2%89%A524-339933">
   <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-runtime-3178c6">
   <img alt="ME1 production gate disabled" src="https://img.shields.io/badge/ME1%20production-gated-f59e0b">
@@ -14,7 +14,7 @@ Build and validate multi-carrier Custom Shipping flows today, while keeping the 
 
 <img src="https://raw.githubusercontent.com/riquelmechile/mercadolibre-me1-chile-integrator/main/docs/assets/control-plane.svg" alt="Controlled shipment lifecycle: preview, explicit approval, one create attempt and observation while the carrier connection remains disabled." width="100%">
 
-> **Current release:** `v0.8.2` · research baseline: Chile, August 2026.
+> **Current release:** `v0.9.0` · research baseline: Chile, August 2026.
 > The repository contains an executable MVP, public research and generic provider adapters. It contains **no tenant production credentials, buyer data or private pilot configuration**.
 
 ## What works today
@@ -26,13 +26,22 @@ Build and validate multi-carrier Custom Shipping flows today, while keeping the 
 | Packaging resolution | ✅ Implemented | SKU/family/default profiles with quantity-aware packing rules |
 | Carrier location catalogs | ✅ Implemented | Versioned region/city/commune/agency catalogs and local routing |
 | Starken quote / OF / tracking | ✅ Implemented | Official plugin-gateway protocol with evidence-based mappings |
+| Seller-owned Mercado Libre shipping planner | ✅ Implemented | Reads seller/category/item shipping capability and emits Custom Shipping dry-run plans |
 | Controlled first-production lifecycle | ✅ Implemented | Preview → exact approval/create → observation while carrier stays disabled |
 | Shipment idempotency | ✅ Implemented | Atomic claims + normalized request fingerprint |
 | Tracking normalization | ✅ Implemented | Deduplication, deterministic ordering and monotonic final states |
 | Blue Express / Chilexpress | 🔒 Contract-gated | Provider shells exist; production mappings wait for official contracts |
 | ME1 Dynamic Freight production | 🔒 Certification-gated | Architecture exists; production publication remains disabled |
 
-The runtime deliberately fails closed when provider evidence, credentials, routing, status mappings or certification prerequisites are incomplete.
+The runtime deliberately fails closed when provider evidence, seller/category shipping eligibility, credentials, routing, status mappings or certification prerequisites are incomplete. Seller-owned Custom Shipping is never assumed from OAuth/write scope alone.
+
+## Seller-owned Mercado Libre path
+
+For sellers that actually expose `custom` in current Mercado Libre shipping preferences and compatible category/item evidence, v0.9.0 can discover eligibility and build deterministic **dry-run** plans for item Custom Shipping configuration and Custom shipment status/tracking updates. It does not expose a live item-shipping write endpoint.
+
+ME1 is different: activation currently requires a certified Dynamic Freight integrator/homologation path. The core therefore reports existing ME1 availability when observed, but never treats OAuth scope or seller ownership as permission to self-activate ME1.
+
+Read [`docs/SELLER-OWNED-CUSTOM-SHIPPING.md`](docs/SELLER-OWNED-CUSTOM-SHIPPING.md) for the exact decision model and limitations.
 
 ## The controlled shipment safety model
 
@@ -120,6 +129,7 @@ The evidence matrix and unresolved contract questions live in [`docs/COURIERS.md
 |---|---|
 | run the executable MVP | [`docs/MVP.md`](docs/MVP.md) |
 | understand the system architecture | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
+| evaluate seller-owned Custom Shipping | [`docs/SELLER-OWNED-CUSTOM-SHIPPING.md`](docs/SELLER-OWNED-CUSTOM-SHIPPING.md) |
 | understand automatic packaging/shipping | [`docs/AUTOMATIC-SHIPPING.md`](docs/AUTOMATIC-SHIPPING.md) |
 | understand carrier location catalogs | [`docs/CARRIER-CATALOGS.md`](docs/CARRIER-CATALOGS.md) |
 | inspect the Starken runtime contract | [`docs/STARKEN-CONTRACT.md`](docs/STARKEN-CONTRACT.md) |
@@ -167,4 +177,4 @@ The public repository contains reusable product code and public evidence only. T
 
 ## Current project status
 
-**Research baseline active · executable MVP v0.8.2 · Starken controlled lifecycle implemented · normal carrier automation disabled until explicitly activated · Dynamic Freight production still certification-gated.**
+**Research baseline active · executable MVP v0.9.0 · seller-owned Custom capability discovery + dry-run planning implemented · Starken controlled lifecycle implemented · normal carrier automation disabled until explicitly activated · Dynamic Freight production still certification-gated.**
