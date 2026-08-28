@@ -161,6 +161,8 @@ The official Carrier Integration test suite is now used as a local external orac
 
 It must remain separate from DPP/Dynamic Freight: passing carrier API tests does not activate ME1 for a seller, and ME1 certification does not make an application a Mercado Envíos carrier.
 
+See [`INTEGRATOR-VS-CARRIER.md`](INTEGRATOR-VS-CARRIER.md) for the current admission gates, commercial roles and technical responsibilities of both tracks.
+
 ---
 
 ## Phase 5 — ME1 tracking V2 production

@@ -133,6 +133,7 @@ The evidence matrix and unresolved contract questions live in [`docs/COURIERS.md
 | evaluate seller-owned Custom Shipping | [`docs/SELLER-OWNED-CUSTOM-SHIPPING.md`](docs/SELLER-OWNED-CUSTOM-SHIPPING.md) |
 | audit current ME1 + Dynamic Freight Chile | [`docs/ME1-DYNAMIC-FREIGHT-AUDIT.md`](docs/ME1-DYNAMIC-FREIGHT-AUDIT.md) |
 | compare against Mercado Envíos Carrier homologation | [`docs/MERCADO-ENVIOS-CARRIER-GAP.md`](docs/MERCADO-ENVIOS-CARRIER-GAP.md) |
+| compare Integrator/Dynamic Freight vs Carrier business paths | [`docs/INTEGRATOR-VS-CARRIER.md`](docs/INTEGRATOR-VS-CARRIER.md) |
 | understand automatic packaging/shipping | [`docs/AUTOMATIC-SHIPPING.md`](docs/AUTOMATIC-SHIPPING.md) |
 | understand carrier location catalogs | [`docs/CARRIER-CATALOGS.md`](docs/CARRIER-CATALOGS.md) |
 | inspect the Starken runtime contract | [`docs/STARKEN-CONTRACT.md`](docs/STARKEN-CONTRACT.md) |
