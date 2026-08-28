@@ -71,10 +71,12 @@ Immediate action for **this product only**:
 
 1. establish one canonical Mercado Libre application for the Maustian integrator product;
 2. confirm the owner account/legal-entity ownership corresponds to Maustian as solution owner;
-3. verify `GET /applications/{APP_ID}` contains no `urn:mp:*` scopes;
-4. use this same application for every seller OAuth grant so DPP active-user/GMV(e) evidence is not fragmented across unrelated App IDs;
-5. keep Client Secret and seller grants only in the deployment secret/token store, never Git;
-6. configure PKCE, product-owned HTTPS callback, product-owned notification callback, minimum functional permissions and only consumed notification topics.
+3. have **Maustian seller self-grant that same application** and bind it as tenant `maustian`;
+4. have Plasticov authorize the same application and bind it as a separate tenant `plasticov`;
+5. verify `GET /applications/{APP_ID}` contains no `urn:mp:*` scopes;
+6. use this same application for every future seller OAuth grant so DPP active-user/GMV(e) evidence is not fragmented across unrelated App IDs;
+7. keep Client Secret and per-seller grants only in the deployment secret/token store, never Git;
+8. configure PKCE, product-owned HTTPS callback, product-owned notification callback, minimum functional permissions and only consumed notification topics.
 
 Apps belonging to other Maustian systems, seller storefronts, Ads tooling or Mercado Pago are outside this repository's scope unless they become an explicit dependency. See [`APPLICATION-IDENTITY.md`](APPLICATION-IDENTITY.md).
 
@@ -105,6 +107,8 @@ Official source: https://www.bcn.cl/leychile/Navegar?idNorma=1209272
 - create/verify the **canonical Mercado Libre application for this integrator product** under the solution owner/legal entity;
 - verify 30/08/2026 ML-vs-MP separation on that application via `GET /applications/{APP_ID}`;
 - use one product App ID across all seller OAuth grants; do not create one App ID per seller;
+- treat Maustian's developer/owner role and Maustian's seller role as separate identities inside the same product: owner of App + self-granted seller tenant;
+- onboard Plasticov as a second seller grant/tenant of that same App;
 - implement/document PKCE, OAuth callback, token rotation, token revocation/recovery and functional permissions;
 - attribute active-seller/GMV(e) telemetry to the canonical product App ID;
 - create a current architecture/data-flow diagram;

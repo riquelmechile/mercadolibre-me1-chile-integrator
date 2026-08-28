@@ -11,15 +11,29 @@ The public product must use **one canonical Mercado Libre application owned by M
 That application is not a Plasticov application, not a storefront application, not an Ads application and not a generic company-wide credential bucket. It represents this product:
 
 ```text
-Maustian Integrator Application
+Maustian SpA — solution owner
           │
-          ├── Seller A OAuth grant
-          ├── Seller B OAuth grant
-          ├── Seller C OAuth grant
-          └── Plasticov OAuth grant (first pilot)
+          └── Maustian Integrator Application (one App ID)
+                    │
+                    ├── Maustian seller self-grant
+                    ├── Plasticov seller grant
+                    ├── Seller C grant
+                    └── Seller D grant
 ```
 
-Each seller authorizes the same application through OAuth. Tokens, refresh tokens, seller IDs and tenant policy remain isolated per seller/tenant.
+Each seller authorizes the same application through OAuth. The application owner may also be a seller: Mercado Libre explicitly documents that the owner can self-grant its own application. Therefore **Maustian SpA may simultaneously be the solution owner/developer and one seller tenant of the same integration**.
+
+App identity and seller identity must stay separate:
+
+```text
+shared across the product:
+  APP_ID + CLIENT_SECRET + callback/webhook identity
+
+isolated per seller grant:
+  seller_id + access_token + refresh_token + tenant policy + ME1 state
+```
+
+Plasticov is another seller grant, not another developer application. Tokens, refresh tokens, seller IDs and tenant policy remain isolated per seller/tenant.
 
 ## 2. Why this matters for DPP
 
@@ -27,8 +41,10 @@ Mercado Libre defines GMV(e) as the monthly GMV of active users using **each app
 
 For Chile the current DPP threshold is USD 200,000 monthly GMV(e), plus good practices, a formal application, Security Assessment >=65%, and assigned certification initiatives.
 
-Official source:
+Official sources:
 - https://developers.mercadolibre.cl/es_ar/atributos-y-variaciones/developer-partner-program
+- https://developers.mercadolibre.cl/es_ar/como-empezar/autenticacion-y-autorizacion
+- Mercado Libre communications docs explicitly state the application owner can self-grant its own application.
 
 The canonical product App ID becomes the durable identity used to measure active sellers, support the certification process and later identify the solution during Dynamic Freight homologation.
 
@@ -36,12 +52,12 @@ The canonical product App ID becomes the durable identity used to measure active
 
 Mercado Libre recommends creating the application from the account of the solution owner and recommends that account be under a legal entity.
 
-For this product the intended owner is **Maustian SpA**.
+For this product the intended owner is **Maustian SpA**. The same Maustian Mercado Libre account may also act as a seller and authorize the application it owns. This is a supported OAuth role combination, not an identity conflict.
 
 Official source:
 - https://developers.mercadolibre.cl/crea-una-aplicacion-en-mercado-libre-es
 
-The product must not depend on a seller-owned application as its long-term identity because that would couple the SaaS to one customer's account and complicate ownership, transfer, certification and GMV(e) evidence.
+The product must not depend on an application owned by a **customer seller** as its long-term identity. That does not prohibit Maustian itself from also being a seller: Maustian is the solution owner, so its seller account is simply one authorized tenant/grant of its own product application.
 
 ## 4. Mercado Libre vs Mercado Pago
 
@@ -154,23 +170,23 @@ Private/deployment stores hold:
 
 A real App ID may be referenced in controlled private operational evidence, but should not be required by the public source code.
 
-## 10. Plasticov pilot
+## 10. Maustian seller + Plasticov seller
 
-Plasticov is the first seller/tenant used to validate the product, not the owner of the product application.
-
-Target pilot sequence:
+The first deployment should prove the multi-role/multi-tenant model explicitly:
 
 ```text
-canonical Maustian integrator app created/configured
-        ↓
-Plasticov authorizes that app
-        ↓
-private overlay stores credentialRef only
-        ↓
-public core resolves seller grant by tenant
-        ↓
-shadow / controlled ME1 validation
+Maustian SpA owns canonical integrator App
+        │
+        ├── Maustian seller self-grants App
+        │      └── tenant = maustian
+        │
+        └── Plasticov seller grants same App
+               └── tenant = plasticov
 ```
+
+Maustian's seller role is useful for proving owner self-grant, tenant isolation and normal seller API behavior. Plasticov remains the controlled logistics/ME1 pilot with its private packaging, tariff and carrier policy.
+
+The private Plasticov overlay stores only Plasticov's seller `credentialRef` and tenant-specific logistics data. The public repository stores neither seller's tokens nor tenant data.
 
 A seller-specific application may exist for unrelated historical tooling, but it is outside this integration's architecture and must not become a dependency of the public product.
 
@@ -187,7 +203,9 @@ Before onboarding Seller B:
 - [ ] functional permissions reduced to implemented needs;
 - [ ] notification topics reduced to implemented needs;
 - [ ] secrets are deployment-only;
-- [ ] seller grant maps to exactly one tenant;
-- [ ] GMV(e) telemetry attributes activity to this canonical App ID.
+- [ ] Maustian owner self-grant maps to exactly one `maustian` tenant;
+- [ ] Plasticov grant maps to exactly one `plasticov` tenant;
+- [ ] both grants resolve the same canonical App ID but different seller IDs/tokens;
+- [ ] GMV(e) telemetry attributes active seller usage to this canonical App ID.
 
 Until these checks pass, external sellers should not be distributed across temporary application identities.
