@@ -42,7 +42,7 @@ For sellers that actually expose `custom` in current Mercado Libre shipping pref
 
 ME1 activation and Dynamic Freight homologation are separate gates. Current developer docs expose a KAM/support or direct-request channel for ME1, while current seller guidance still lists a certified Dynamic Freight integrator as an activation requirement. The core records that official conflict rather than assuming either path; Dynamic Freight endpoint homologation itself remains explicitly certification-gated.
 
-Read [`docs/SELLER-OWNED-CUSTOM-SHIPPING.md`](docs/SELLER-OWNED-CUSTOM-SHIPPING.md) for the seller decision model, [`docs/ME1-DYNAMIC-FREIGHT-AUDIT.md`](docs/ME1-DYNAMIC-FREIGHT-AUDIT.md) for the current checkout/tracking contract, and [`docs/MERCADO-ENVIOS-CARRIER-GAP.md`](docs/MERCADO-ENVIOS-CARRIER-GAP.md) for the separate carrier track.
+Read [`docs/SELLER-OWNED-CUSTOM-SHIPPING.md`](docs/SELLER-OWNED-CUSTOM-SHIPPING.md) for the seller decision model, [`docs/ME1-DYNAMIC-FREIGHT-AUDIT.md`](docs/ME1-DYNAMIC-FREIGHT-AUDIT.md) for the current checkout/tracking contract, and [`docs/MERCADO-ENVIOS-CARRIER-GAP.md`](docs/MERCADO-ENVIOS-CARRIER-GAP.md) for the separate carrier track. For the end-to-end business, development and bureaucracy sequence, use [`docs/LAUNCH-PLAN-CHILE.md`](docs/LAUNCH-PLAN-CHILE.md) as the authoritative launch plan.
 
 ## The controlled shipment safety model
 
@@ -129,6 +129,7 @@ The evidence matrix and unresolved contract questions live in [`docs/COURIERS.md
 | I want to… | Start here |
 |---|---|
 | run the executable MVP | [`docs/MVP.md`](docs/MVP.md) |
+| launch the product in Chile (development + bureaucracy) | [`docs/LAUNCH-PLAN-CHILE.md`](docs/LAUNCH-PLAN-CHILE.md) |
 | understand the system architecture | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
 | evaluate seller-owned Custom Shipping | [`docs/SELLER-OWNED-CUSTOM-SHIPPING.md`](docs/SELLER-OWNED-CUSTOM-SHIPPING.md) |
 | audit current ME1 + Dynamic Freight Chile | [`docs/ME1-DYNAMIC-FREIGHT-AUDIT.md`](docs/ME1-DYNAMIC-FREIGHT-AUDIT.md) |

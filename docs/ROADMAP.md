@@ -4,6 +4,8 @@
 
 The project should not start by pretending to be a certified ME1 Dynamic Freight integrator. The fastest credible route is to build useful logistics automation first, acquire active sellers, then qualify for certification.
 
+> **Launch authority:** this roadmap describes product milestones. The complete sequence of development, seller ME1 activation, DPP bureaucracy, Dynamic Freight homologation, Partner Center, 2026 hard dates, privacy readiness and the parallel Carrier lane is maintained in [`LAUNCH-PLAN-CHILE.md`](LAUNCH-PLAN-CHILE.md). If the two documents differ on bureaucracy or gating, the launch plan wins.
+
 ## Phase 0 — research and provider contracts
 
 ### Goal
