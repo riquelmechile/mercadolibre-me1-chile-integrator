@@ -130,6 +130,7 @@ The evidence matrix and unresolved contract questions live in [`docs/COURIERS.md
 |---|---|
 | run the executable MVP | [`docs/MVP.md`](docs/MVP.md) |
 | launch the product in Chile (development + bureaucracy) | [`docs/LAUNCH-PLAN-CHILE.md`](docs/LAUNCH-PLAN-CHILE.md) |
+| configure the canonical Mercado Libre product application | [`docs/APPLICATION-IDENTITY.md`](docs/APPLICATION-IDENTITY.md) |
 | understand the system architecture | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
 | evaluate seller-owned Custom Shipping | [`docs/SELLER-OWNED-CUSTOM-SHIPPING.md`](docs/SELLER-OWNED-CUSTOM-SHIPPING.md) |
 | audit current ME1 + Dynamic Freight Chile | [`docs/ME1-DYNAMIC-FREIGHT-AUDIT.md`](docs/ME1-DYNAMIC-FREIGHT-AUDIT.md) |
