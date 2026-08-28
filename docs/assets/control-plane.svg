@@ -28,7 +28,7 @@
     <g transform="translate(1082 64)">
       <rect width="112" height="40" rx="20" fill="#18243b" stroke="#334155"/>
       <circle cx="22" cy="20" r="6" fill="#34d399"/>
-      <text x="38" y="26" fill="#dbeafe" font-size="15" font-weight="700">v0.9.0</text>
+      <text x="38" y="26" fill="#dbeafe" font-size="15" font-weight="700">v0.10.0</text>
     </g>
 
     <line x1="305" y1="305" x2="347" y2="305" stroke="#64748b" stroke-width="3" marker-end="url(#arrow)"/>

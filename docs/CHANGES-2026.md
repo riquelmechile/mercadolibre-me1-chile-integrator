@@ -1,6 +1,14 @@
+# 28 August 2026 — v0.10.0 ME1 V2, Dynamic Freight and Carrier contract hardening
+
+Audits the current 19-Aug ME1 V2 state contract and 24-Aug Dynamic Freight contract, adds a strict MLC `seller_notifications` dry-run planner, Chile `city_to` item-option support, Dynamic Freight request/quote/cache/error guards and a loopback-only Mercado Envíos Carrier certification harness. The current official `mercadolibre/carrier-integration-tests` Docker suite is used as an external oracle; selected OAuth/Coverage/Agencies/Domestic Authorization/Last Mile scenarios total 31/31 PASS. Production activation remains gated.
+
+Critical corrections: current V2 final `not_delivered` uses `returned`/`refused_delivery`; the older `returning_to_sender` value is rejected. Dynamic Freight must use MELI-consolidated dimensions exactly when quantity >1. Carrier Last Mile `0401` requires explicit proof of delivery and `0260` requires explicit reconciliation cost/dimensions.
+
+---
+
 # 26 August 2026 — v0.9.0 seller-owned Custom Shipping planner
 
-Adds read-only Mercado Libre seller/category/item shipping capability discovery and deterministic dry-run Custom Shipping plans. The runtime now distinguishes seller-owned `custom` from existing `me1` and records that Dynamic Freight activation/homologation requires a certified integrator. Existing low-level Custom writes require an explicit `customShippingWritesEnabled=true` seller gate and fail before token/network when disabled. No live item-shipping execution route is exposed.
+Adds read-only Mercado Libre seller/category/item shipping capability discovery and deterministic dry-run Custom Shipping plans. The runtime now distinguishes seller-owned `custom` from existing `me1` and records the certification gate for Dynamic Freight homologation; ME1 account activation is now documented separately because current official developer and seller guidance conflict on whether a certified integrator is mandatory. Existing low-level Custom writes require an explicit `customShippingWritesEnabled=true` seller gate and fail before token/network when disabled. No live item-shipping execution route is exposed.
 
 # 26 August 2026 — v0.8.2 preserve provider label evidence
 
@@ -30,7 +38,7 @@ Starken shipment creation now requires `allowedOriginAgencyCodes` to be present 
 
 # Critical changes and deadlines — 2026
 
-**Research cut:** 25 August 2026
+**Research cut:** 28 August 2026
 
 This file tracks changes that affect architecture or delivery timing.
 

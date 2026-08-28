@@ -1,6 +1,6 @@
-# MVP runtime — v0.9.0
+# MVP runtime — v0.10.0
 
-**Implementation cut:** 26 August 2026.
+**Implementation cut:** 28 August 2026.
 
 This repository now includes an executable MVP for the logistics core described in `ARCHITECTURE.md`.
 
@@ -20,7 +20,9 @@ This repository now includes an executable MVP for the logistics core described 
 - Fastify HTTP API with correlation IDs and redacted secret headers.
 - Mock courier adapter for complete local/sandbox flows.
 - Current official Starken plugin-gateway adapter for `quote`, `create_shipment` and `tracking`, with contract-driven fallback plus fail-closed shells for Blue Express and Chilexpress.
-- Mercado Libre adapter boundary with a certification gate for ME1 publication.
+- Mercado Libre seller boundary with strict ME1 V2 dry-run notifications, Chile `city_to` item options and a double gate for live ME1 publication.
+- Dynamic Freight homologation-contract helpers for authoritative MELI dimensions, quotation arithmetic/service IDs, ETag/cache and documented error semantics.
+- Loopback-only Mercado Envíos Carrier CIT harness used against the current official certification Docker suite; no live courier dependency.
 
 ## Safety boundary
 
@@ -152,9 +154,10 @@ Submitting the same idempotency key again returns the original shipment instead 
 | POST | `/v1/tenants/:tenantId/sellers` | connect Mercado Libre seller by credential ref |
 | GET | `/v1/tenants/:tenantId/sellers` | list seller connections |
 | GET | `/v1/tenants/:tenantId/sellers/:sellerId/shipping/capabilities` | read seller/category/item shipping eligibility; reports Custom vs existing ME1 boundary |
-| GET | `/v1/tenants/:tenantId/sellers/:sellerId/shipping/item-options` | read current Mercado Libre item shipping options for a postal code |
+| GET | `/v1/tenants/:tenantId/sellers/:sellerId/shipping/item-options` | read current item shipping options using exactly one of `cityTo` or `zipCode`; MLC supports city destination |
 | POST | `/v1/tenants/:tenantId/sellers/:sellerId/shipping/custom/item-plan` | dry-run Custom Shipping item payload; never writes Mercado Libre |
 | POST | `/v1/tenants/:tenantId/sellers/:sellerId/shipping/custom/shipment-update-plan` | dry-run Custom shipment state/tracking payload; never writes Mercado Libre |
+| POST | `/v1/tenants/:tenantId/sellers/:sellerId/shipping/me1/seller-notification-plan` | strict ME1 V2 seller-notification dry-run; never writes Mercado Libre |
 | POST | `/v1/tenants/:tenantId/tariff-snapshots` | publish/version tariff rules |
 | POST | `/v1/quotes` | deterministic snapshot-first quote |
 | POST | `/v1/shipments` | idempotent provider shipment create |
@@ -167,7 +170,7 @@ Submitting the same idempotency key again returns the original shipment instead 
 | GET | `/v1/tenants/:tenantId/shipments/:shipmentId/tracking-events` | list tracking history |
 | GET | `/v1/tenants/:tenantId/audit` | tenant audit trail |
 
-See `SELLER-OWNED-CUSTOM-SHIPPING.md` for the seller-owned Custom path and its ME1 certification boundary. See `CONTROLLED-SHIPMENT-CEREMONY.md` for the three-mode controlled carrier lifecycle: preview → explicit approval/create → short-lived reconciliation/tracking observation sessions.
+See `SELLER-OWNED-CUSTOM-SHIPPING.md` for the seller-owned Custom path, `ME1-DYNAMIC-FREIGHT-AUDIT.md` for the current ME1/Dynamic Freight contract, `MERCADO-ENVIOS-CARRIER-GAP.md` for the separate Carrier Integration track, and `CONTROLLED-SHIPMENT-CEREMONY.md` for the three-mode controlled courier lifecycle.
 
 ## Adding an official carrier contract
 

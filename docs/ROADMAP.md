@@ -1,6 +1,6 @@
 # Roadmap — Custom → DPP → certified ME1
 
-**Baseline date:** 25 August 2026
+**Baseline date:** 28 August 2026
 
 The project should not start by pretending to be a certified ME1 Dynamic Freight integrator. The fastest credible route is to build useful logistics automation first, acquire active sellers, then qualify for certification.
 
@@ -132,9 +132,9 @@ Source: https://developers.mercadolibre.cl/es_ar/atributos-y-variaciones/develop
 Certify the quote endpoint and operational integration for ME1 Dynamic Freight.
 
 ### Product work
-- ME1 quote endpoint contract;
+- ME1 quote endpoint contract (current request/response/cache/error guards already implemented);
 - active tariff/coverage snapshots;
-- quote cache;
+- quote cache / ETag revalidation;
 - deterministic pricing policy;
 - Mercado Libre contingency handling;
 - latency/error SLO dashboards;
@@ -152,6 +152,14 @@ Normal quote serving should not make a blocking call to Starken/Blue/Chilexpress
 - contingency tests pass;
 - required latency/reliability metrics remain inside agreed limits;
 - seller onboarding to ME1 has a controlled process.
+
+---
+
+## Parallel track — Mercado Envíos Carrier onboarding
+
+The official Carrier Integration test suite is now used as a local external oracle. Selected MLC flows for OAuth, Coverage City, Agencies, Domestic Authorization and Last Mile/Conciliation are green against the fixture harness. This track is still commercially blocked on Mercado Libre-assigned Carrier ID, SERVICE_ID, carrier contract and focal-point onboarding.
+
+It must remain separate from DPP/Dynamic Freight: passing carrier API tests does not activate ME1 for a seller, and ME1 certification does not make an application a Mercado Envíos carrier.
 
 ---
 

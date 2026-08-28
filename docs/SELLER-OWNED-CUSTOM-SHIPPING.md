@@ -1,6 +1,6 @@
 # Seller-owned Mercado Libre shipping — Custom now, ME1 later
 
-**Runtime status:** v0.9.0
+**Runtime status:** v0.10.0
 
 This document defines the safe path for a seller that wants to connect its own logistics stack to Mercado Libre without pretending that seller ownership replaces Mercado Libre's ME1 / Dynamic Freight certification requirements.
 
@@ -11,7 +11,8 @@ There are two different product paths:
 | Path | Who owns logistics | Can this core prepare it now? | Certification boundary |
 |---|---|---:|---|
 | `custom` | seller | yes, when Mercado Libre currently exposes Custom for the seller/category/item | no Dynamic Freight homologation required for the planner itself |
-| `me1` + Dynamic Freight | seller + third-party logistics | only if the seller already has ME1 enabled | activation/homologation requires a certified Dynamic Freight integrator |
+| `me1` | seller + own/third-party logistics | report/use only when already observed enabled | official activation docs currently conflict on whether a certified integrator is mandatory |
+| Dynamic Freight | homologated integrator | contract preparation only | homologation is reserved to integrators in certification |
 
 Seller OAuth scopes are **not** evidence that a shipping mode is enabled. The runtime discovers current Mercado Libre shipping preferences before recommending a path.
 
@@ -28,23 +29,26 @@ Therefore the product promise for Custom must be:
 > automate seller logistics and Mercado Libre shipment state where the account supports it;
 > do not promise ME1-style buyer-visible external tracking until the account is actually on the ME1 V2 path.
 
-## Why we do not self-activate ME1
+## ME1 activation vs Dynamic Freight homologation
 
-Current Mercado Libre Chile seller guidance for activating ME1 requires, among other conditions:
+The current official sources do not say exactly the same thing about **ME1 account activation**:
 
-- acceptable seller reputation;
-- products that can use the ME1 flow;
-- an active contract with a Mercado Libre-certified Dynamic Freight integrator;
-- an integration hub;
-- a maintained contingency tariff table.
+- the developer ME1 page says activation can be requested through a KAM/commercial advisor **or through the direct-request channel** described by Mercado Libre;
+- the current seller learning-center guide lists an active contract with a **certified Dynamic Freight integrator** among the requirements and describes that integrator as the party that requests activation.
 
-Mercado Libre's Dynamic Freight developer documentation also states that endpoint homologation is reserved for certified integrators.
+Those statements are not equivalent. A direct request channel does not prove that Mercado Libre will activate an account without an integrator, and the public runtime must not guess which internal workflow will be applied to a specific seller.
 
-The runtime consequently carries this invariant:
+The runtime therefore reports these explicit facts:
 
 ```text
-dynamicFreightActivationRequiresCertifiedIntegrator = true
+me1DirectRequestChannelDocumented = true
+me1SellerGuidanceRequiresCertifiedIntegrator = true
+me1ActivationRequirementConflict = true
+dynamicFreightActivationRequiresCertifiedIntegrator = true   # deprecated v0.9.0 name
+dynamicFreightHomologationRequiresCertifiedIntegrator = true
 ```
+
+The homologation flag refers to the **Dynamic Freight homologation path**: the current Dynamic Freight developer page explicitly reserves homologation to integrators in the certification process.
 
 If read-only evidence shows the seller already exposes `me1`, the planner can report `existing_me1`; it still does not claim that this repository activated ME1.
 
@@ -57,7 +61,8 @@ GET /users/{seller_id}/shipping_preferences
 GET /categories/{category_id}/shipping_preferences
 GET  /items/{item_id}
 POST /users/{seller_id}/shipping_modes   # prevalidation only, no listing mutation
-GET  /items/{item_id}/shipping_options?zip_code={zip}
+GET  /items/{item_id}/shipping_options?city_to={city_id}   # Chile/MLC
+# zip_code remains an explicit alternative where the destination contract uses postal code
 ```
 
 The planner then normalizes:
@@ -69,7 +74,8 @@ itemMode
 itemAvailableModes
 customEligible
 me1AlreadyAvailable
-dynamicFreightActivationRequiresCertifiedIntegrator
+dynamicFreightActivationRequiresCertifiedIntegrator  # deprecated compatibility field
+dynamicFreightHomologationRequiresCertifiedIntegrator
 recommendedPath
 blockers[]
 ```
@@ -86,12 +92,12 @@ GET /v1/tenants/:tenantId/sellers/:sellerId/shipping/capabilities
     &itemId=MLC...
 ```
 
-Inspect the shipping options Mercado Libre currently calculates for an item/postal code:
+Inspect the shipping options Mercado Libre currently calculates for an item/destination. For Chile prefer `cityTo`; the route requires exactly one of `cityTo` or `zipCode`:
 
 ```text
 GET /v1/tenants/:tenantId/sellers/:sellerId/shipping/item-options
     ?itemId=MLC...
-    &zipCode=...
+    &cityTo=...
 ```
 
 These routes perform Mercado Libre reads only.
@@ -139,7 +145,7 @@ The planner preserves the item's observed `local_pick_up` value and forces `free
 }
 ```
 
-v0.9.0 deliberately exposes **no live item-shipping write endpoint**. A future execution path must reuse the repository's prepare/approve/execute discipline and re-read final Mercado Libre state after the write.
+v0.10.0 deliberately exposes **no live item-shipping write endpoint**. A future execution path must reuse the repository's prepare/approve/execute discipline and re-read final Mercado Libre state after the write.
 
 ## Dry-run Custom shipment update plan
 
@@ -173,7 +179,24 @@ SellerConnection.config.customShippingWritesEnabled === true
 
 The low-level Custom tracking write uses the fixed official `/shipments/{shipmentId}` path and remains disabled unless `customShippingWritesEnabled=true`. When disabled, it fails before secret resolution/network I/O; tenant config cannot substitute an arbitrary write path.
 
-No HTTP route in v0.9.0 turns a dry-run Custom item plan into a live Mercado Libre mutation.
+No HTTP route in v0.10.0 turns a dry-run Custom item plan into a live Mercado Libre mutation.
+
+
+## ME1 V2 dry-run status planner
+
+The runtime also exposes a **dry-run-only** builder for the current ME1 V2 tracking contract:
+
+```text
+POST /v1/tenants/:tenantId/sellers/:sellerId/shipping/me1/seller-notification-plan
+```
+
+For MLC it derives `payload.service_id=282578`, requires an ISO-8601 event date with timezone, requires the `substatus` key even when its value is JSON `null`, enforces the current V2 status/substatus allowlist, and requires `tracking_number` + `tracking_url` as a pair. The obsolete V1-era `returning_to_sender` value is rejected; current final `not_delivered` uses `returned` or `refused_delivery`.
+
+A failed visit such as `shipped + receiver_absent` is not final. `delivered` and `not_delivered` are final/irreversible and should be published only from sufficient operational evidence.
+
+The low-level ME1 writer remains double-gated by runtime certification and seller configuration and is not exposed as an automatic HTTP execution route.
+
+See [`ME1-DYNAMIC-FREIGHT-AUDIT.md`](ME1-DYNAMIC-FREIGHT-AUDIT.md) for the complete 2026-08 contract audit.
 
 ## Relationship to Starken
 

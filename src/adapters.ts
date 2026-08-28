@@ -213,9 +213,14 @@ export class MercadoLibreAdapter implements MarketplaceAdapter {
   async fetchItemShippingOptions(
     connection: SellerConnection,
     itemId: string,
-    zipCode: string,
+    destination: { zipCode?: string; cityTo?: string },
   ): Promise<Record<string, unknown>> {
-    const query = new URLSearchParams({ zip_code: zipCode }).toString();
+    const zipCode = destination.zipCode?.trim();
+    const cityTo = destination.cityTo?.trim();
+    if ((!zipCode && !cityTo) || (zipCode && cityTo)) {
+      throw new IntegrationGatedError('Exactly one shipping destination selector is required: zipCode or cityTo');
+    }
+    const query = new URLSearchParams(zipCode ? { zip_code: zipCode } : { city_to: cityTo! }).toString();
     return this.authorizedGet(
       connection,
       `/items/${encodeURIComponent(itemId)}/shipping_options?${query}`,

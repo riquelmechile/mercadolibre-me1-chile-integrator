@@ -481,9 +481,13 @@ export function buildServer(options: BuildServerOptions): FastifyInstance {
     const { tenantId, sellerId } = request.params as { tenantId: string; sellerId: string };
     const query = request.query as Record<string, unknown>;
     const itemId = typeof query.itemId === 'string' ? query.itemId.trim() : '';
-    const zipCode = typeof query.zipCode === 'string' ? query.zipCode.trim() : '';
-    if (!itemId || !zipCode) throw new AppError('invalid_request', 'itemId and zipCode query parameters are required', 400);
-    return sellerShipping.itemShippingOptions(tenantId, sellerId, itemId, zipCode);
+    const zipCode = typeof query.zipCode === 'string' && query.zipCode.trim() ? query.zipCode.trim() : undefined;
+    const cityTo = typeof query.cityTo === 'string' && query.cityTo.trim() ? query.cityTo.trim() : undefined;
+    if (!itemId) throw new AppError('invalid_request', 'itemId query parameter is required', 400);
+    if ((!zipCode && !cityTo) || (zipCode && cityTo)) {
+      throw new AppError('invalid_request', 'Exactly one destination query parameter is required: zipCode or cityTo', 400);
+    }
+    return sellerShipping.itemShippingOptions(tenantId, sellerId, itemId, { ...(zipCode ? { zipCode } : {}), ...(cityTo ? { cityTo } : {}) });
   });
 
   app.post('/v1/tenants/:tenantId/sellers/:sellerId/shipping/custom/item-plan', async (request) => {
@@ -508,6 +512,30 @@ export function buildServer(options: BuildServerOptions): FastifyInstance {
       categoryId: requiredString(body, 'categoryId'),
       itemId: requiredString(body, 'itemId'),
       costs,
+    });
+  });
+
+  app.post('/v1/tenants/:tenantId/sellers/:sellerId/shipping/me1/seller-notification-plan', async (request) => {
+    if (!sellerShipping) throw new AppError('integration_gated', 'Mercado Libre marketplace adapter is not configured', 503);
+    const { tenantId, sellerId } = request.params as { tenantId: string; sellerId: string };
+    const body = objectBody(request);
+    const status = requiredString(body, 'status');
+    if (!['shipped', 'delivered', 'not_delivered'].includes(status)) {
+      throw new AppError('invalid_request', 'status must be shipped, delivered or not_delivered', 400);
+    }
+    if (!Object.prototype.hasOwnProperty.call(body, 'substatus')) {
+      throw new AppError('invalid_request', 'substatus must be present; use JSON null when absent', 400);
+    }
+    const substatus = body.substatus === null ? null : requiredString(body, 'substatus');
+    return sellerShipping.me1SellerNotificationPlan(tenantId, sellerId, {
+      siteId: requiredString(body, 'siteId') as 'MLB' | 'MLA' | 'MLM' | 'MLC' | 'MCO' | 'MLU' | 'MPE',
+      shipmentId: requiredString(body, 'shipmentId'),
+      status: status as 'shipped' | 'delivered' | 'not_delivered',
+      substatus: substatus as import('./meli-seller-shipping.js').Me1ShipmentSubstatus,
+      occurredAt: requiredString(body, 'occurredAt'),
+      ...(typeof body.comment === 'string' ? { comment: body.comment } : {}),
+      ...(typeof body.trackingNumber === 'string' ? { trackingNumber: body.trackingNumber } : {}),
+      ...(typeof body.trackingUrl === 'string' ? { trackingUrl: body.trackingUrl } : {}),
     });
   });
 

@@ -1,6 +1,6 @@
 # Architecture — Mercado Libre Chile multi-courier logistics integrator
 
-**Status:** current implementation + target architecture, 26 August 2026
+**Status:** current implementation + target architecture, 28 August 2026
 
 ## Goals
 
@@ -9,10 +9,11 @@ Build a provider-neutral logistics core that can serve multiple Mercado Libre se
 Primary product paths:
 
 1. **Custom Shipping automation** for immediate operational use.
-2. **ME1 Dynamic Freight** after certification/homologation.
-3. Optional future **Mercado Libre Flex courier** integration.
+2. **ME1 seller tracking + Dynamic Freight** after activation/certification/homologation.
+3. Separate **Mercado Envíos Carrier Integration** readiness for a future carrier onboarding path.
+4. Optional future **Mercado Libre Flex courier** integration.
 
-## Current runtime boundary — v0.9.0
+## Current runtime boundary — v0.10.0
 
 The executable core already implements the reusable control-plane foundation: tenant/carrier connections, secret references, packaging profiles, versioned tariff and location snapshots, local routing, snapshot-first quotes, atomic shipment idempotency, audit events, tracking normalization and a current official Starken adapter.
 
@@ -24,7 +25,7 @@ preview-only → explicit exact-payload approval/create → observation-only
 
 The observation path can reconcile a provider issuance to a freight order, preserve label evidence and ingest deduplicated/monotonic tracking while the carrier remains disabled. Blue Express and Chilexpress remain contract-gated shells. ME1 Dynamic Freight publication remains certification-gated.
 
-The rest of this document describes both this implemented foundation and the architecture it grows into; future-only components are not implied to exist in v0.9.0.
+The rest of this document describes both this implemented foundation and the architecture it grows into; future-only components are not implied to exist in v0.10.0.
 
 ## Core principles
 
@@ -140,15 +141,14 @@ Request path:
 
 ```text
 Mercado Libre quote request
-    -> validate tenant/seller/item context
-    -> resolve packaging + origin
-    -> local coverage/tariff snapshot
-    -> shipping policy/rules
-    -> contingency check
-    -> deterministic quote response
+    -> validate seller + exactly-one-item context
+    -> accept MELI-provided dimensions as authoritative
+    -> resolve Chile Región/Comuna coverage + tariff policy
+    -> choose service/price/promise
+    -> emit deterministic cacheable quote response
 ```
 
-Never make the normal quote response dependent on a synchronous carrier API request if a valid tariff snapshot exists.
+Never make the normal quote response dependent on a synchronous carrier API request if a valid tariff snapshot exists. When `quantity > 1`, Mercado Libre already consolidates dimensions; the Dynamic Freight boundary must not multiply or repack the dimensions it receives.
 
 Background synchronization path:
 
@@ -178,6 +178,17 @@ Canonical publisher rules:
 - maintain an idempotency record for every outbound event.
 
 ---
+
+### Mercado Envíos Carrier Integration boundary
+
+Carrier Integration is a different trust boundary from seller ME1. The local certification harness exposes Mercado Envíos-shaped OAuth, coverage, agencies, domestic authorization and tracking **without** depending on `CourierAdapter` or production credentials. Selected current official Docker-suite scenarios pass locally, but production remains gated on Mercado Libre-assigned Carrier ID, SERVICE_ID, contract and onboarding permissions.
+
+```text
+Seller ME1 / Dynamic Freight  !=  Carrier Integration  !=  physical courier adapter
+```
+
+Never treat seller OAuth, Dynamic Freight certification, carrier onboarding or a courier credential as interchangeable authority. See `MERCADO-ENVIOS-CARRIER-GAP.md`.
+
 
 ## Courier adapter contract
 
@@ -257,7 +268,7 @@ not_delivered
 cancelled
 ```
 
-A dedicated mapping layer converts provider status + context into Mercado Libre V2 `status/substatus`.
+A dedicated mapping layer converts provider status + context into Mercado Libre V2 `status/substatus`. Internal labels such as `returning_to_sender` are **not wire values**: current ME1 V2 final `not_delivered` uses `returned` or `refused_delivery`, and the publisher rejects the obsolete V1-era wire value `returning_to_sender`.
 
 Provider mappings must be versioned because carrier status taxonomies can change.
 
@@ -411,7 +422,7 @@ Do not dump raw payloads containing PII into permanent audit logs. Store only th
 
 ## Current implementation boundary and next milestones
 
-### Implemented in v0.9.0
+### Implemented in v0.10.0
 
 - tenant and seller/carrier connection skeletons with credential references;
 - packaging profiles and deterministic package resolution;
@@ -422,6 +433,9 @@ Do not dump raw payloads containing PII into permanent audit logs. Store only th
 - canonical tracking persistence, dedupe and monotonic final states;
 - official Starken plugin-gateway quote/create/tracking integration;
 - Mercado Libre seller/category/item shipping capability discovery plus dry-run seller-owned Custom Shipping planning;
+- strict current ME1 V2 seller-notification planning and MLC `city_to` item-option reads;
+- Dynamic Freight request/quote/cache/error contract guards with MELI-supplied dimensions authoritative;
+- loopback-only Mercado Envíos Carrier certification harness with selected official-suite flows green;
 - controlled preview, exact-payload create and shipment-scoped observation while the carrier remains disabled;
 - audit foundations and public/private configuration boundaries.
 

@@ -12,7 +12,12 @@ export interface SellerOwnedShippingCapabilities {
   itemFreeShipping: boolean | null;
   customEligible: boolean;
   me1AlreadyAvailable: boolean;
+  me1DirectRequestChannelDocumented: true;
+  me1SellerGuidanceRequiresCertifiedIntegrator: true;
+  me1ActivationRequirementConflict: true;
+  /** @deprecated Misnamed in v0.9.0; use dynamicFreightHomologationRequiresCertifiedIntegrator. */
   dynamicFreightActivationRequiresCertifiedIntegrator: true;
+  dynamicFreightHomologationRequiresCertifiedIntegrator: true;
   recommendedPath: SellerOwnedRecommendedPath;
   blockers: string[];
 }
@@ -36,6 +41,40 @@ export interface CustomShipmentUpdatePlanInput {
   trackingNumber?: string;
   speedHours?: number;
   comments?: string;
+}
+
+export type Me1ShipmentStatus = 'shipped' | 'delivered' | 'not_delivered';
+export type Me1ShipmentSubstatus =
+  | 'out_for_delivery'
+  | 'soon_deliver'
+  | 'at_the_door'
+  | 'receiver_absent'
+  | 'bad_address'
+  | 'dangerous_area'
+  | 'unauthorized_receiver'
+  | 'impassable_zone'
+  | 'not_visited'
+  | 'documentation_issue'
+  | 'taxes_issue'
+  | 'fiscalization_issue'
+  | 'refused_delivery'
+  | 'returned'
+  | null;
+
+export interface Me1SellerNotificationPlanInput {
+  siteId: 'MLB' | 'MLA' | 'MLM' | 'MLC' | 'MCO' | 'MLU' | 'MPE';
+  shipmentId: string;
+  status: Me1ShipmentStatus;
+  substatus: Me1ShipmentSubstatus;
+  occurredAt: string;
+  comment?: string;
+  trackingNumber?: string;
+  trackingUrl?: string;
+}
+
+export interface ItemShippingOptionsDestination {
+  zipCode?: string;
+  cityTo?: string;
 }
 
 export interface MarketplaceDryRunPlan {
@@ -185,7 +224,11 @@ export function analyzeSellerOwnedShipping(input: AnalyzeSellerOwnedShippingInpu
     itemFreeShipping: currentFreeShipping,
     customEligible,
     me1AlreadyAvailable,
+    me1DirectRequestChannelDocumented: true,
+    me1SellerGuidanceRequiresCertifiedIntegrator: true,
+    me1ActivationRequirementConflict: true,
     dynamicFreightActivationRequiresCertifiedIntegrator: true,
+    dynamicFreightHomologationRequiresCertifiedIntegrator: true,
     recommendedPath: me1AlreadyAvailable ? 'existing_me1' : customEligible ? 'custom' : 'none',
     blockers,
   };
@@ -250,6 +293,86 @@ export function buildCustomShipmentUpdatePlan(input: CustomShipmentUpdatePlanInp
 }
 
 
+const me1ServiceIds: Record<Me1SellerNotificationPlanInput['siteId'], number> = {
+  MLB: 11,
+  MLA: 154,
+  MLM: 231876,
+  MLC: 282578,
+  MCO: 282579,
+  MLU: 282604,
+  MPE: 361180,
+};
+
+const shippedSubstatuses = new Set<Me1ShipmentSubstatus>([
+  null,
+  'out_for_delivery',
+  'soon_deliver',
+  'at_the_door',
+  'receiver_absent',
+  'bad_address',
+  'dangerous_area',
+  'unauthorized_receiver',
+  'impassable_zone',
+  'not_visited',
+  'documentation_issue',
+  'taxes_issue',
+  'fiscalization_issue',
+]);
+
+function validIsoWithTimezone(value: string): boolean {
+  return Number.isFinite(Date.parse(value)) && /(?:Z|[+-]\d{2}:\d{2})$/i.test(value);
+}
+
+export function buildMe1SellerNotificationPlan(input: Me1SellerNotificationPlanInput): MarketplaceDryRunPlan {
+  if (!Object.prototype.hasOwnProperty.call(me1ServiceIds, input.siteId)) {
+    throw new IntegrationGatedError('ME1 siteId is unsupported');
+  }
+  const shipmentId = requiredId(input.shipmentId, 'shipmentId');
+  if (!validIsoWithTimezone(input.occurredAt)) {
+    throw new IntegrationGatedError('ME1 event date must be ISO 8601 and include a timezone');
+  }
+  const validCombination =
+    (input.status === 'shipped' && shippedSubstatuses.has(input.substatus)) ||
+    (input.status === 'delivered' && input.substatus === null) ||
+    (input.status === 'not_delivered' && (input.substatus === 'returned' || input.substatus === 'refused_delivery'));
+  if (!validCombination) {
+    throw new IntegrationGatedError('ME1 status/substatus combination is invalid');
+  }
+  const hasTrackingNumber = typeof input.trackingNumber === 'string' && input.trackingNumber.trim() !== '';
+  const hasTrackingUrl = typeof input.trackingUrl === 'string' && input.trackingUrl.trim() !== '';
+  if (hasTrackingNumber !== hasTrackingUrl) {
+    throw new IntegrationGatedError('ME1 tracking_number and tracking_url must be sent together as a pair');
+  }
+  let tracking: Record<string, string> = {};
+  if (hasTrackingNumber && hasTrackingUrl) {
+    const trackingNumber = requiredId(input.trackingNumber!, 'trackingNumber');
+    const trackingUrl = requiredId(input.trackingUrl!, 'trackingUrl');
+    let parsed: URL;
+    try { parsed = new URL(trackingUrl); } catch { throw new IntegrationGatedError('trackingUrl must be a valid URL'); }
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+      throw new IntegrationGatedError('trackingUrl must use HTTP or HTTPS');
+    }
+    tracking = { tracking_number: trackingNumber, tracking_url: trackingUrl };
+  }
+  const payload: Record<string, unknown> = {
+    service_id: me1ServiceIds[input.siteId],
+    ...(input.comment?.trim() ? { comment: input.comment.trim() } : {}),
+    date: input.occurredAt,
+  };
+  return {
+    dryRun: true,
+    method: 'POST',
+    path: `/v2/shipments/${encodeURIComponent(shipmentId)}/seller_notifications`,
+    body: {
+      payload,
+      ...tracking,
+      status: input.status,
+      substatus: input.substatus,
+    },
+  };
+}
+
+
 export interface SellerOwnedShippingDiscoveryRequest {
   tenantId: string;
   sellerId: string;
@@ -295,9 +418,22 @@ export class MercadoLibreSellerShippingService {
     return analyzeSellerOwnedShipping({ sellerPreferences, categoryPreferences, item, itemShippingModes });
   }
 
-  async itemShippingOptions(tenantId: string, sellerId: string, itemId: string, zipCode: string): Promise<Record<string, unknown>> {
+  async itemShippingOptions(tenantId: string, sellerId: string, itemId: string, destination: ItemShippingOptionsDestination): Promise<Record<string, unknown>> {
     const connection = this.requireSeller(tenantId, sellerId);
-    return this.marketplace.fetchItemShippingOptions(connection, requiredId(itemId, 'itemId'), requiredId(zipCode, 'zipCode'));
+    const zipCode = destination.zipCode?.trim();
+    const cityTo = destination.cityTo?.trim();
+    if ((!zipCode && !cityTo) || (zipCode && cityTo)) {
+      throw new IntegrationGatedError('Exactly one shipping destination selector is required: zipCode or cityTo');
+    }
+    return this.marketplace.fetchItemShippingOptions(connection, requiredId(itemId, 'itemId'), {
+      ...(zipCode ? { zipCode } : {}),
+      ...(cityTo ? { cityTo } : {}),
+    });
+  }
+
+  me1SellerNotificationPlan(tenantId: string, sellerId: string, input: Me1SellerNotificationPlanInput): MarketplaceDryRunPlan {
+    this.requireSeller(tenantId, sellerId);
+    return buildMe1SellerNotificationPlan(input);
   }
 
   async customItemPlan(

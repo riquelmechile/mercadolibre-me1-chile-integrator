@@ -42,7 +42,7 @@ export interface MarketplaceAdapter {
   fetchCategoryShippingPreferences(connection: SellerConnection, categoryId: string): Promise<Record<string, unknown>>;
   fetchItem(connection: SellerConnection, itemId: string): Promise<Record<string, unknown>>;
   fetchItemShippingModes(connection: SellerConnection, payload: Record<string, unknown>): Promise<Record<string, unknown>>;
-  fetchItemShippingOptions(connection: SellerConnection, itemId: string, zipCode: string): Promise<Record<string, unknown>>;
+  fetchItemShippingOptions(connection: SellerConnection, itemId: string, destination: { zipCode?: string; cityTo?: string }): Promise<Record<string, unknown>>;
   publishCustomTracking(
     connection: SellerConnection,
     shipmentId: string,

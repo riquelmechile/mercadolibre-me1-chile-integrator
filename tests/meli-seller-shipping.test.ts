@@ -10,6 +10,7 @@ import {
   analyzeSellerOwnedShipping,
   buildCustomItemShippingPlan,
   buildCustomShipmentUpdatePlan,
+  buildMe1SellerNotificationPlan,
 } from '../src/meli-seller-shipping.js';
 
 class FixtureSecrets implements SecretProvider {
@@ -74,7 +75,7 @@ test('MercadoLibreAdapter reads seller/category/item shipping capabilities witho
       res.end(JSON.stringify({ channels: { marketplace: { available_modes: [{ mode: 'custom', logistic_types: [] }, { mode: 'me2', logistic_types: [] }] } } }));
       return;
     }
-    if (req.url === '/items/MLC999/shipping_options?zip_code=8320000') {
+    if (req.url === '/items/MLC999/shipping_options?city_to=TUxDQ1NBTlRJR09D') {
       res.end(JSON.stringify({ options: [{ id: 'MLC999-0', name: 'Despacho', list_cost: 4990 }] }));
       return;
     }
@@ -87,7 +88,7 @@ test('MercadoLibreAdapter reads seller/category/item shipping capabilities witho
     const categoryPrefs = await adapter.fetchCategoryShippingPreferences(seller, 'MLC123');
     const item = await adapter.fetchItem(seller, 'MLC999');
     const shippingModes = await adapter.fetchItemShippingModes(seller, { site_id: 'MLC', item_id: 'MLC999' });
-    const options = await adapter.fetchItemShippingOptions(seller, 'MLC999', '8320000');
+    const options = await adapter.fetchItemShippingOptions(seller, 'MLC999', { cityTo: 'TUxDQ1NBTlRJR09D' });
     assert.deepEqual(sellerPrefs.modes, ['custom', 'not_specified', 'me2']);
     assert.equal((item.shipping as Record<string, unknown>).mode, 'custom');
     assert.ok(Array.isArray(options.options));
@@ -97,7 +98,7 @@ test('MercadoLibreAdapter reads seller/category/item shipping capabilities witho
       'GET /categories/MLC123/shipping_preferences',
       'GET /items/MLC999',
       'POST /users/123456/shipping_modes',
-      'GET /items/MLC999/shipping_options?zip_code=8320000',
+      'GET /items/MLC999/shipping_options?city_to=TUxDQ1NBTlRJR09D',
     ]);
     assert.equal(secrets.calls, 5);
   });
@@ -111,7 +112,11 @@ test('seller-owned analysis allows Custom only when observed account/category ev
   });
   assert.equal(eligible.customEligible, true);
   assert.equal(eligible.me1AlreadyAvailable, false);
+  assert.equal(eligible.me1DirectRequestChannelDocumented, true);
+  assert.equal(eligible.me1SellerGuidanceRequiresCertifiedIntegrator, true);
+  assert.equal(eligible.me1ActivationRequirementConflict, true);
   assert.equal(eligible.dynamicFreightActivationRequiresCertifiedIntegrator, true);
+  assert.equal(eligible.dynamicFreightHomologationRequiresCertifiedIntegrator, true);
   assert.equal(eligible.recommendedPath, 'custom');
 
   const blocked = analyzeSellerOwnedShipping({
@@ -131,7 +136,11 @@ test('seller-owned analysis reports existing ME1 but never claims seller-owned a
     item: { id: 'MLC777', category_id: 'MLC777', shipping: { mode: 'me1' } },
   });
   assert.equal(result.me1AlreadyAvailable, true);
+  assert.equal(result.me1DirectRequestChannelDocumented, true);
+  assert.equal(result.me1SellerGuidanceRequiresCertifiedIntegrator, true);
+  assert.equal(result.me1ActivationRequirementConflict, true);
   assert.equal(result.dynamicFreightActivationRequiresCertifiedIntegrator, true);
+  assert.equal(result.dynamicFreightHomologationRequiresCertifiedIntegrator, true);
   assert.equal(result.recommendedPath, 'existing_me1');
 });
 
@@ -231,6 +240,69 @@ test('Custom shipment update plans follow official shipped/delivered/cancelled c
   assert.throws(() => buildCustomShipmentUpdatePlan({ shipmentId: 'SHIP-1', status: 'shipped', receiverId: '1234' }), /trackingNumber/i);
 });
 
+
+test('ME1 V2 seller notification plan enforces current MLC status/substatus and tracking-pair contract', () => {
+  const shipped = buildMe1SellerNotificationPlan({
+    siteId: 'MLC',
+    shipmentId: 'SHIP-ME1-1',
+    status: 'shipped',
+    substatus: 'receiver_absent',
+    occurredAt: '2026-08-28T09:30:00-04:00',
+    comment: 'Visita fallida',
+    trackingNumber: 'OF-123',
+    trackingUrl: 'https://tracking.example.invalid/OF-123',
+  });
+  assert.equal(shipped.dryRun, true);
+  assert.equal(shipped.method, 'POST');
+  assert.equal(shipped.path, '/v2/shipments/SHIP-ME1-1/seller_notifications');
+  assert.deepEqual(shipped.body, {
+    payload: { service_id: 282578, comment: 'Visita fallida', date: '2026-08-28T09:30:00-04:00' },
+    tracking_number: 'OF-123',
+    tracking_url: 'https://tracking.example.invalid/OF-123',
+    status: 'shipped',
+    substatus: 'receiver_absent',
+  });
+
+  const delivered = buildMe1SellerNotificationPlan({
+    siteId: 'MLC', shipmentId: 'SHIP-ME1-1', status: 'delivered', substatus: null,
+    occurredAt: '2026-08-28T12:00:00Z',
+  });
+  assert.equal(delivered.body.substatus, null);
+
+  const notDelivered = buildMe1SellerNotificationPlan({
+    siteId: 'MLC', shipmentId: 'SHIP-ME1-1', status: 'not_delivered', substatus: 'returned',
+    occurredAt: '2026-08-28T13:00:00Z',
+  });
+  assert.equal(notDelivered.body.status, 'not_delivered');
+
+  assert.throws(() => buildMe1SellerNotificationPlan({
+    siteId: 'MLC', shipmentId: 'SHIP-ME1-1', status: 'shipped', substatus: 'returned',
+    occurredAt: '2026-08-28T13:00:00Z',
+  }), /status.*substatus|substatus.*status/i);
+  assert.throws(() => buildMe1SellerNotificationPlan({
+    siteId: 'MLC', shipmentId: 'SHIP-ME1-1', status: 'not_delivered', substatus: 'returning_to_sender' as never,
+    occurredAt: '2026-08-28T13:00:00Z',
+  }), /status.*substatus|substatus.*status/i);
+  const nearDoor = buildMe1SellerNotificationPlan({
+    siteId: 'MLC', shipmentId: 'SHIP-ME1-2', status: 'shipped', substatus: 'at_the_door',
+    occurredAt: '2026-08-28T13:00:00Z',
+  });
+  assert.equal(nearDoor.body.substatus, 'at_the_door');
+
+  assert.throws(() => buildMe1SellerNotificationPlan({
+    siteId: 'MLC', shipmentId: 'SHIP-ME1-1', status: 'delivered', substatus: 'null' as never,
+    occurredAt: '2026-08-28T13:00:00Z',
+  }), /substatus/i);
+  assert.throws(() => buildMe1SellerNotificationPlan({
+    siteId: 'MLC', shipmentId: 'SHIP-ME1-1', status: 'shipped', substatus: null,
+    occurredAt: 'not-a-date',
+  }), /date|ISO/i);
+  assert.throws(() => buildMe1SellerNotificationPlan({
+    siteId: 'MLC', shipmentId: 'SHIP-ME1-1', status: 'shipped', substatus: null,
+    occurredAt: '2026-08-28T13:00:00Z', trackingNumber: 'OF-1',
+  }), /tracking.*together|tracking.*pair/i);
+});
+
 test('Custom marketplace writes stay disabled unless explicitly enabled on seller connection', async () => {
   const secrets = new FixtureSecrets();
   const adapter = new MercadoLibreAdapter(secrets, 'http://127.0.0.1:9', false);
@@ -268,6 +340,47 @@ test('explicitly enabled low-level Custom tracking write uses only the official 
   });
 });
 
+
+
+test('ME1 low-level write stays double-gated and uses only V2 seller_notifications when explicitly certified', async () => {
+  const secrets = new FixtureSecrets();
+  const runtimeBlocked = new MercadoLibreAdapter(secrets, 'http://127.0.0.1:9', false);
+  await assert.rejects(
+    () => runtimeBlocked.publishMe1Tracking({ ...seller, config: { me1Certified: true } }, 'SHIP-1', { status: 'delivered', substatus: null }),
+    /certification.*enabled|ME1 publication is disabled/i,
+  );
+  assert.equal(secrets.calls, 0, 'runtime ME1 gate must fail before secret resolution/network');
+
+  const requests: Array<{ method: string | undefined; url: string | undefined; body: string }> = [];
+  await withServer((req, body, res) => {
+    requests.push({ method: req.method, url: req.url, body });
+    assert.equal(req.headers.authorization, 'Bearer fixture-token');
+    res.statusCode = 200;
+    res.setHeader('content-type', 'application/json');
+    res.end('{}');
+  }, async (baseUrl) => {
+    const localSecrets = new FixtureSecrets();
+    const adapter = new MercadoLibreAdapter(localSecrets, baseUrl, true);
+    await assert.rejects(
+      () => adapter.publishMe1Tracking({ ...seller, config: {} }, 'SHIP-1', { status: 'delivered', substatus: null }),
+      /ME1 publication is disabled/i,
+    );
+    assert.equal(localSecrets.calls, 0, 'seller ME1 gate must fail before secret resolution/network');
+
+    const payload = buildMe1SellerNotificationPlan({
+      siteId: 'MLC', shipmentId: 'SHIP-1', status: 'delivered', substatus: null,
+      occurredAt: '2026-08-28T12:00:00Z', trackingNumber: 'OF-1', trackingUrl: 'https://tracking.example.invalid/OF-1',
+    }).body;
+    await adapter.publishMe1Tracking({ ...seller, config: { me1Certified: true } }, 'SHIP-1', payload);
+    assert.equal(localSecrets.calls, 1);
+    assert.deepEqual(requests, [{
+      method: 'POST',
+      url: '/v2/shipments/SHIP-1/seller_notifications',
+      body: JSON.stringify(payload),
+    }]);
+  });
+});
+
 test('HTTP seller-owned endpoints expose discovery and dry-run plans only', async () => {
   await withServer((req, _body, res) => {
     res.setHeader('content-type', 'application/json');
@@ -287,7 +400,7 @@ test('HTTP seller-owned endpoints expose discovery and dry-run plans only', asyn
       res.end(JSON.stringify({ channels: { marketplace: { available_modes: [{ mode: 'custom' }, { mode: 'me2' }] } } }));
       return;
     }
-    if (req.url === '/items/MLC999/shipping_options?zip_code=8320000') {
+    if (req.url === '/items/MLC999/shipping_options?city_to=TUxDQ1NBTlRJR09D') {
       res.end(JSON.stringify({ options: [{ id: 'option-1', list_cost: 4990 }] }));
       return;
     }
@@ -314,11 +427,15 @@ test('HTTP seller-owned endpoints expose discovery and dry-run plans only', asyn
     });
     assert.equal(capabilities.statusCode, 200, capabilities.body);
     assert.equal(capabilities.json().customEligible, true);
+    assert.equal(capabilities.json().me1DirectRequestChannelDocumented, true);
+    assert.equal(capabilities.json().me1SellerGuidanceRequiresCertifiedIntegrator, true);
+    assert.equal(capabilities.json().me1ActivationRequirementConflict, true);
     assert.equal(capabilities.json().dynamicFreightActivationRequiresCertifiedIntegrator, true);
+    assert.equal(capabilities.json().dynamicFreightHomologationRequiresCertifiedIntegrator, true);
 
     const options = await app.inject({
       method: 'GET',
-      url: '/v1/tenants/tenant-1/sellers/123456/shipping/item-options?itemId=MLC999&zipCode=8320000',
+      url: '/v1/tenants/tenant-1/sellers/123456/shipping/item-options?itemId=MLC999&cityTo=TUxDQ1NBTlRJR09D',
     });
     assert.equal(options.statusCode, 200, options.body);
 
@@ -339,6 +456,19 @@ test('HTTP seller-owned endpoints expose discovery and dry-run plans only', asyn
     assert.equal(trackingPlan.statusCode, 200, trackingPlan.body);
     assert.equal(trackingPlan.json().dryRun, true);
     assert.equal(trackingPlan.json().method, 'PUT');
+
+    const me1Plan = await app.inject({
+      method: 'POST',
+      url: '/v1/tenants/tenant-1/sellers/123456/shipping/me1/seller-notification-plan',
+      payload: {
+        siteId: 'MLC', shipmentId: 'SHIP-ME1-1', status: 'shipped', substatus: 'receiver_absent',
+        occurredAt: '2026-08-28T09:30:00-04:00', trackingNumber: 'OF-ME1-1', trackingUrl: 'https://tracking.example.invalid/OF-ME1-1',
+      },
+    });
+    assert.equal(me1Plan.statusCode, 200, me1Plan.body);
+    assert.equal(me1Plan.json().dryRun, true);
+    assert.equal(me1Plan.json().path, '/v2/shipments/SHIP-ME1-1/seller_notifications');
+    assert.equal(me1Plan.json().body.payload.service_id, 282578);
 
     assert.equal(app.hasRoute({ method: 'PUT', url: '/v1/tenants/:tenantId/sellers/:sellerId/shipping/custom/item' }), false);
     await app.close();

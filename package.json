@@ -1,6 +1,6 @@
 {
   "name": "mercadolibre-me1-chile-integrator",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "private": false,
   "description": "Multi-tenant, multi-courier logistics integration core for Mercado Libre Chile Custom and future certified ME1 Dynamic Freight.",
   "type": "module",
